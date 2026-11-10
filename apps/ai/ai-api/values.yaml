@@ -68,7 +68,9 @@ extraVolumes:
 terminationGracePeriodSeconds: 40
 
 # 처리 중인 요청 수로 확장(5-3 5.5). CPU만으로는 외부 LLM 대기를 못 본다.
-# [가정] AI팀이 keepgo_ai_inflight_requests 게이지를 /metrics로 내보낸다(아직 없음). 그 전에는 CPU 트리거만 동작.
+# [사실] 처리 중 요청 게이지는 앱에 없다. 앱 코드 변경 없이 리틀의 법칙으로 평균 동시 처리 수를 구한다.
+#        초당 요청 수 × 평균 처리 시간 = 처리 시간 합계의 증가율 = rate(…_duration_seconds_sum)
+#        요청이 끝날 때 기록되므로 긴 요청(최대 120초)은 끝난 뒤에 반영된다(확장이 조금 늦다).
 autoscaling:
   type: keda
   keda:
@@ -76,7 +78,7 @@ autoscaling:
       - type: prometheus
         metadata:
           serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
-          query: sum(keepgo_ai_inflight_requests{namespace="ai", app_kubernetes_io_name="ai-api"})
+          query: sum(rate(keepgo_http_request_duration_seconds_sum{namespace="ai", app_kubernetes_io_name="ai-api"}[2m]))
           # Pod 하나가 동시에 처리할 요청 수(가정). 외부 AI 전역 한도 ÷ 이 값 ≥ maxReplicas (5-3 5.6)
           threshold: "8"
           ignoreNullValues: "true"

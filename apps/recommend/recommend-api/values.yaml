@@ -16,8 +16,10 @@ env:
   SPRING_LIFECYCLE_TIMEOUTPERSHUTDOWNPHASE: 45s
 
 # 활성 SSE 연결 수로 확장(5-3 5.5). Scale-to-Zero는 쓰지 않는다.
-# [가정] 개발팀이 keepgo_sse_active_connections 게이지를 내보낸다(아직 없음). 지표가 없으면
-#        Prometheus 트리거는 값을 못 읽고 CPU 트리거만 동작한다.
+# [사실] 앱 코드 변경 없이 쓰는 값: Spring이 진행 중인 HTTP 요청 수를 내는 http_server_requests_active_seconds_gcount.
+#        SSE는 응답이 끝날 때까지(최대 180초) 진행 중으로 남아서 이 수의 대부분이 SSE 연결이다.
+#        uri 라벨은 요청 시작 시점이라 항상 UNKNOWN이어서 경로로 거르지 않고 서비스 전체로 본다.
+#        SSE가 없는 옛 이미지(503a236)에서는 거의 0이라 CPU 트리거만 동작한다.
 autoscaling:
   type: keda
   keda:
@@ -25,7 +27,7 @@ autoscaling:
       - type: prometheus
         metadata:
           serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
-          query: sum(keepgo_sse_active_connections{namespace="recommend", app_kubernetes_io_name="recommend-api"})
+          query: sum(http_server_requests_active_seconds_gcount{namespace="recommend", app_kubernetes_io_name="recommend-api"})
           # Pod 하나가 맡을 연결 수(가정). 연결당 메모리를 재고 정한다.
           threshold: "200"
           ignoreNullValues: "true"
