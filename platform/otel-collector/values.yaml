@@ -1,0 +1,67 @@
+# OpenTelemetry Collector(open-telemetry/opentelemetry-collector 차트 0.176.1, collector-contrib 0.162.0) 설치 값. 소유 A.
+# 앱(OTel Java Agent)이 보낸 Span을 받아 AWS X-Ray로 보낸다. 메트릭·로그는 받지 않는다(Prometheus·Fluent Bit 담당).
+#
+# [AWS 자격증명] EKS Pod Identity: tracing/otel-collector → IAM keepgo-dev3-otel-collector-role (AWSXRayDaemonWriteAccess)
+
+mode: deployment
+replicaCount: 1
+# 앱이 보낼 주소를 짧게: http://otel-collector.tracing.svc.cluster.local:4318
+fullnameOverride: otel-collector
+
+image:
+  # awsxray exporter는 contrib 배포판에만 있다
+  repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
+  tag: "0.162.0"
+command:
+  name: otelcol-contrib
+
+serviceAccount:
+  create: true
+  name: otel-collector
+
+# 관리 컴포넌트라 System 노드(5-3 6.3)
+nodeSelector: { workload: system }
+tolerations:
+  - { key: workload, operator: Equal, value: system, effect: NoSchedule }
+priorityClassName: system-cluster-critical
+
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { memory: 256Mi }
+
+# OTLP(4317 gRPC, 4318 HTTP)만 연다. 차트 기본의 jaeger·zipkin 포트는 끈다
+ports:
+  jaeger-compact: { enabled: false }
+  jaeger-thrift: { enabled: false }
+  jaeger-grpc: { enabled: false }
+  zipkin: { enabled: false }
+
+config:
+  receivers:
+    # 차트 기본 수신기 중 쓰지 않는 것을 지운다
+    jaeger: null
+    zipkin: null
+    prometheus: null
+    otlp:
+      protocols:
+        grpc: { endpoint: "${env:MY_POD_IP}:4317" }
+        http: { endpoint: "${env:MY_POD_IP}:4318" }
+  processors:
+    # 메모리 한도(256Mi)의 80%를 넘으면 새 데이터를 거절해 OOM을 막는다
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 80
+      spike_limit_percentage: 20
+    batch: {}
+  exporters:
+    debug: null
+    awsxray:
+      region: ap-northeast-2
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [awsxray]
+      metrics: null
+      logs: null
