@@ -53,9 +53,11 @@ configs:
 
 # partA System 노드 자원 산정값
 controller:
+  # 11-10 768Mi에서 OOMKilled 반복(CrashLoop). 컨트롤러는 관리하는 리소스를 전부 메모리에 캐시하는데,
+  # Chaos Mesh(대형 CRD 23개)·kube-prometheus-stack(대시보드 ConfigMap 28개, 규칙 30개)이 늘면서 한도를 넘었다.
   resources:
-    requests: { cpu: 250m, memory: 384Mi }
-    limits: { memory: 768Mi }
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { memory: 1536Mi }
 repoServer:
   resources:
     requests: { cpu: 100m, memory: 256Mi }
