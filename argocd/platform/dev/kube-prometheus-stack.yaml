@@ -1,0 +1,53 @@
+# 메트릭 기반(Prometheus·Alertmanager·Grafana). 소유 A. 앱 대시보드·알림 경로는 platform-monitoring(B)
+# 릴리스 이름을 바꾸면 B의 release 라벨, KEDA 주소가 모두 깨진다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-kube-prometheus-stack
+  namespace: argocd
+  labels:
+    keepgo.io/env: dev
+    keepgo.io/team: platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-8"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 93.1.1   # operator v0.95.1, 클러스터의 CRD 버전과 같아야 함
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/platform/kube-prometheus-stack/values.yaml
+    - repoURL: https://github.com/100-hours-a-week/KTB4-8th-CLOUD-GITOPS.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  # admission Job이 webhook caBundle을 나중에 채우고, 토큰 Secret은 쿠버네티스가 채움
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions: [".webhooks[]?.clientConfig.caBundle"]
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions: [".webhooks[]?.clientConfig.caBundle"]
+    - kind: Secret
+      name: kube-prometheus-stack-prometheus-token
+      jsonPointers: [/data]
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # monitoring Namespace는 platform-monitoring(B)이 만든다. 여기서는 라벨을 관리하지 않는다
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true          # 대시보드 ConfigMap·PrometheusRule이 커서 필요
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

@@ -13,6 +13,7 @@ spec:
     - https://kedacore.github.io/charts
     - https://charts.external-secrets.io
     - https://charts.chaos-mesh.org
+    - https://prometheus-community.github.io/helm-charts
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
