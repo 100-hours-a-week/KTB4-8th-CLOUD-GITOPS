@@ -21,6 +21,34 @@ kubeScheduler: { enabled: false }
 kubeEtcd: { enabled: false }
 kubeProxy: { enabled: false }   # EKS kube-proxy 지표는 127.0.0.1에만 열려 있음
 
+# 시계열 정리(11-10 설치 직후 약 19.8만 개 중 apiserver 11.5만, karpenter 3만).
+# 아래에서 버리는 지표는 차트 기본 규칙·대시보드와 platform/monitoring·keepgo-app 차트 어디에서도 쓰지 않는다.
+# metricRelabelings를 적으면 차트 기본값이 덮어써지므로 기본 규칙(첫 항목)을 그대로 옮겨 둔다.
+kubeApiServer:
+  serviceMonitor:
+    metricRelabelings:
+      # 차트 기본값: 필요 없는 le 경계 제거
+      - action: drop
+        regex: (etcd_request|apiserver_request_slo|apiserver_request_sli|apiserver_request)_duration_seconds_bucket;(0\.15|0\.2|0\.3|0\.35|0\.4|0\.45|0\.6|0\.7|0\.8|0\.9|1\.25|1\.5|1\.75|2|3|3\.5|4|4\.5|6|7|8|9|15|20|40|45|50)(\.0)?
+        sourceLabels: [__name__, le]
+      # 추가: 규칙·대시보드가 쓰지 않는 histogram bucket (약 7.5만 개)
+      #   apiserver_request_sli_duration_seconds_bucket은 차트 기본 규칙이 써서 남긴다
+      - action: drop
+        regex: (apiserver_(watch_events_dispatch_duration_seconds|request_duration_seconds|request_body_size_bytes|watch_list_duration_seconds|storage_list_duration_seconds|watch_cache_read_wait_seconds|response_sizes|watch_cache_initialization_duration_seconds|watch_events_sizes)|etcd_request_duration_seconds)_bucket
+        sourceLabels: [__name__]
+
+kubelet:
+  serviceMonitor:
+    metricRelabelings:
+      # 차트 기본값
+      - action: drop
+        sourceLabels: [__name__, le]
+        regex: (csi_operations|storage_operation_duration)_seconds_bucket;(0.25|2.5|15|25|120|600)(\.0)?
+      # 추가: 노드마다 기능 플래그 수백 개 (약 1,800개)
+      - action: drop
+        sourceLabels: [__name__]
+        regex: kubernetes_feature_enabled
+
 defaultRules:
   create: true
   rules:
@@ -183,3 +211,8 @@ extraManifests:
       endpoints:
         - port: http-metrics
           interval: 30s
+          # 인스턴스 타입 × AZ × 구매 옵션 조합마다 생기는 가격·가용성 지표 (약 1.9만 개). 대시보드·알림에서 안 씀
+          metricRelabelings:
+            - action: drop
+              sourceLabels: [__name__]
+              regex: karpenter_cloudprovider_instance_type_offering_(available|price_estimate)
