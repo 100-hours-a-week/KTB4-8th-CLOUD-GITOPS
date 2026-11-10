@@ -13,3 +13,9 @@ externalSecrets:
       asEnv: true
       dataFrom:
         - extract: { key: keepgo/dev3/ai }
+
+# Prometheus(kube-prometheus-stack)가 PodMonitor·PrometheusRule을 고르는 라벨. Spring은 _shared/spring-dev.yaml에 있다.
+# 없으면 이 서비스의 재시작·OOM·Replica 알림을 Prometheus가 읽지 않는다.
+metrics:
+  podMonitorLabels:
+    release: kube-prometheus-stack

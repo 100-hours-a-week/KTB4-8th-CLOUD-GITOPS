@@ -9,6 +9,8 @@ probes:
   preset: spring
 
 env:
+  # Tomcat 스레드·연결 지표(tomcat_threads_busy_threads 등)를 Actuator로 낸다. 코드 변경 없음
+  SERVER_TOMCAT_MBEANREGISTRY_ENABLED: "true"
   DB_VENDOR: mysql
   DB_PORT: "3306"
   DB_NAME: keepgo
