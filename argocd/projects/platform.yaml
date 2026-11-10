@@ -12,6 +12,7 @@ spec:
     - https://github.com/100-hours-a-week/KTB4-8th-CLOUD-GITOPS.git
     - https://kedacore.github.io/charts
     - https://charts.external-secrets.io
+    - https://charts.chaos-mesh.org
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
