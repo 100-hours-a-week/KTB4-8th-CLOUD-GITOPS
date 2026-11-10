@@ -1,0 +1,40 @@
+# 앱 컨테이너 로그 → CloudWatch Logs(Fluent Bit DaemonSet). 소유 A.
+# 서비스 계정 logging/fluent-bit는 Pod Identity로 IAM keepgo-dev3-fluent-bit-role과 연결돼 있다(이름을 바꾸면 연결도 바꿔야 함)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-fluent-bit
+  namespace: argocd
+  labels:
+    keepgo.io/env: dev
+    keepgo.io/team: platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  sources:
+    - repoURL: https://fluent.github.io/helm-charts
+      chart: fluent-bit
+      targetRevision: 0.58.3
+      helm:
+        releaseName: fluent-bit
+        valueFiles:
+          - $values/platform/fluent-bit/values.yaml
+    - repoURL: https://github.com/100-hours-a-week/KTB4-8th-CLOUD-GITOPS.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

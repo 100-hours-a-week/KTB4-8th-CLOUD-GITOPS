@@ -1,0 +1,114 @@
+# Fluent Bit(fluent/fluent-bit 차트 0.58.3, Fluent Bit 5.1.3) 설치 값. 소유 A.
+# 앱 컨테이너 로그 → CloudWatch Logs. 로그 그룹은 Namespace마다 /aws/eks/keepgo-dev3/<namespace>, 보관 7일.
+# 위키 Trace-ID 결정: 로그는 CloudWatch Logs, 조회는 Grafana(CloudWatch 데이터 소스, Logs Insights).
+#
+# [AWS 자격증명] 키가 아니라 EKS Pod Identity
+#   logging/fluent-bit → IAM keepgo-dev3-fluent-bit-role
+#   (/aws/eks/keepgo-dev3/* 로그 그룹에만 CreateLogGroup·CreateLogStream·PutLogEvents·PutRetentionPolicy)
+#
+# [비용] 수집량(GB) 과금이라 앱 Namespace 6개만 보낸다. 시스템(kube-system·argocd·monitoring 등) 로그는 보내지 않는다.
+
+kind: DaemonSet
+
+# helm test용 busybox:latest 파드. Argo CD로 배포할 때는 필요 없다
+testFramework:
+  enabled: false
+
+# 서비스 계정 이름을 Pod Identity 연결과 맞춘다
+serviceAccount:
+  create: true
+  name: fluent-bit
+
+# 모든 EC2 노드(System·application·worker)에 하나씩. taint가 있는 노드도 허용, Fargate는 DaemonSet이 못 뜬다
+tolerations:
+  - operator: Exists
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - { key: eks.amazonaws.com/compute-type, operator: NotIn, values: [fargate] }
+priorityClassName: system-node-critical
+
+resources:
+  requests: { cpu: 20m, memory: 48Mi }
+  limits: { memory: 128Mi }
+
+# Fluent Bit 자체 지표(보낸 건수·재시도·실패)를 Prometheus가 수집
+serviceMonitor:
+  enabled: true
+  selector:
+    release: kube-prometheus-stack
+
+# 읽은 위치 기록 파일. 파드가 재시작돼도 이어서 읽어 중복·누락을 줄인다
+daemonSetVolumes:
+  - name: varlog
+    hostPath:
+      path: /var/log
+  - name: state
+    hostPath:
+      path: /var/fluent-bit/state
+      type: DirectoryOrCreate
+  - name: etcmachineid
+    hostPath:
+      path: /etc/machine-id
+      type: File
+daemonSetVolumeMounts:
+  - name: varlog
+    mountPath: /var/log
+    readOnly: true
+  - name: state
+    mountPath: /var/fluent-bit/state
+  - name: etcmachineid
+    mountPath: /etc/machine-id
+    readOnly: true
+
+config:
+  inputs: |
+    [INPUT]
+        Name              tail
+        Tag               kube.*
+        # 파일 이름 형식: <pod>_<namespace>_<container>-<id>.log → 앱 Namespace 6개만
+        Path              /var/log/containers/*_account_*.log,/var/log/containers/*_ingest_*.log,/var/log/containers/*_content_*.log,/var/log/containers/*_recommend_*.log,/var/log/containers/*_ai_*.log,/var/log/containers/*_frontend_*.log
+        multiline.parser  cri
+        DB                /var/fluent-bit/state/flb_kube.db
+        Mem_Buf_Limit     10MB
+        Skip_Long_Lines   On
+        Refresh_Interval  10
+
+  filters: |
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        # JSON 로그면 필드로 펼친다(구조화 로그에서 trace_id를 검색하려고)
+        Merge_Log           On
+        Keep_Log            Off
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude On
+        # 라벨·주석까지 붙이면 로그 한 줄이 커져서 비용이 는다
+        Labels              Off
+        Annotations         Off
+
+  outputs: |
+    [OUTPUT]
+        Name                cloudwatch_logs
+        Match               kube.*
+        region              ap-northeast-2
+        # Namespace별 로그 그룹. 템플릿을 못 채우면 아래 고정 이름을 쓴다
+        log_group_name      /aws/eks/keepgo-dev3/unknown
+        log_group_template  /aws/eks/keepgo-dev3/$kubernetes['namespace_name']
+        # 로그 스트림 = 파드.컨테이너
+        log_stream_prefix   fallback-
+        log_stream_template $kubernetes['pod_name'].$kubernetes['container_name']
+        auto_create_group   On
+        log_retention_days  7
+        Retry_Limit         5
+
+  # 차트 기본 파서 파일을 그대로 둔다
+  customParsers: |
+    [PARSER]
+        Name        docker_no_time
+        Format      json
+        Time_Keep   Off
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
