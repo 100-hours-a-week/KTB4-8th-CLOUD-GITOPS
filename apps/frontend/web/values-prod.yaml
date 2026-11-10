@@ -20,3 +20,7 @@ externalSecrets:
       asEnv: true
       dataFrom:
         - extract: { key: keepgo/prod/web }
+
+metrics:
+  podMonitorLabels:
+    release: kube-prometheus-stack

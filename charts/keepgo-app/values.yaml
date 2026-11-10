@@ -124,8 +124,8 @@ env:
   SPRING_LIFECYCLE_TIMEOUTPERSHUTDOWNPHASE: 25s
   # liveness·readiness 그룹을 명시적으로 켠다(쿠버네티스에서는 자동이지만 앱 설정에 없어서 분명히 둔다, 5-3 4.3).
   MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
-  # p95 알림·대시보드용 히스토그램(기본은 꺼져 있다)
-  MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILESHISTOGRAM_HTTP_SERVER_REQUESTS: "true"
+  # HTTP 히스토그램은 앱(application.yaml)이 메트릭 계약 v1 경계 12개(50ms~300s)로 이미 낸다.
+  # 여기서 percentiles-histogram을 켜면 그 설계를 덮어써 bucket이 수십 개로 늘어나므로 켜지 않는다.
 
 # valueFrom 등 맵으로 표현하기 어려운 환경변수. 쿠버네티스 env 형식 그대로 쓴다.
 extraEnv: []

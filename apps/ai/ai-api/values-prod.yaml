@@ -16,3 +16,7 @@ externalSecrets:
       asEnv: true
       dataFrom:
         - extract: { key: Secret-v1-AI }
+
+metrics:
+  podMonitorLabels:
+    release: kube-prometheus-stack
