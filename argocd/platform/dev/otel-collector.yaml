@@ -1,0 +1,40 @@
+# 트레이스 수집기(OTLP → AWS X-Ray). 소유 A.
+# 서비스 계정 tracing/otel-collector는 Pod Identity로 IAM keepgo-dev3-otel-collector-role과 연결돼 있다(이름을 바꾸면 연결도 바꿔야 함)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-otel-collector
+  namespace: argocd
+  labels:
+    keepgo.io/env: dev
+    keepgo.io/team: platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  sources:
+    - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+      chart: opentelemetry-collector
+      targetRevision: 0.176.1
+      helm:
+        releaseName: otel-collector
+        valueFiles:
+          - $values/platform/otel-collector/values.yaml
+    - repoURL: https://github.com/100-hours-a-week/KTB4-8th-CLOUD-GITOPS.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tracing
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

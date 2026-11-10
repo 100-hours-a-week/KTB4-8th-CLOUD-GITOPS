@@ -165,6 +165,18 @@ grafana:
       jsonData:
         authType: default          # AWS SDK 기본 체인 → Pod Identity가 넣어 준 자격증명 사용
         defaultRegion: ap-northeast-2
+    # 트레이스 조회(6단계). Span은 OTel Collector(tracing ns)가 X-Ray에 쓴다. 같은 Grafana Role의 X-Ray 읽기 권한 사용
+    - name: X-Ray
+      uid: xray
+      type: grafana-x-ray-datasource
+      access: proxy
+      editable: false
+      jsonData:
+        authType: default
+        defaultRegion: ap-northeast-2
+  # X-Ray 데이터 소스 플러그인(Grafana에 기본 포함 아님). 파드가 뜰 때 grafana.com에서 받는다(NAT 경유)
+  plugins:
+    - grafana-x-ray-datasource
   # Pod Identity 자격증명(환경변수)은 파드가 새로 만들어질 때만 들어간다.
   # 데이터 소스는 sidecar가 재시작 없이 다시 읽으므로, 연결 시점 표시를 바꿔 파드를 한 번 새로 띄운다.
   podAnnotations:

@@ -15,6 +15,7 @@ spec:
     - https://charts.chaos-mesh.org
     - https://prometheus-community.github.io/helm-charts
     - https://fluent.github.io/helm-charts
+    - https://open-telemetry.github.io/opentelemetry-helm-charts
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
