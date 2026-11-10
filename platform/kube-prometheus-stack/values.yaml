@@ -1,0 +1,185 @@
+# kube-prometheus-stack(93.1.1, operator v0.95.1) 설치 값. 소유 A.
+# 메트릭 기반: Prometheus·Alertmanager·Grafana 본체. 앱 대시보드·알림 규칙·Discord 경로는 B(platform/monitoring, keepgo-app 차트)
+#
+# [B와의 계약]
+#   - 릴리스 이름 kube-prometheus-stack, Namespace monitoring (KEDA 주소 kube-prometheus-stack-prometheus.monitoring.svc:9090)
+#   - PodMonitor·PrometheusRule·ServiceMonitor는 release: kube-prometheus-stack 라벨로 고름(selector 기본값 유지)
+#   - Grafana sidecar: grafana_dashboard="1" 라벨, grafana_folder 주석
+#   - Alertmanager: alertmanagerConfigMatcherStrategy None (팀 Namespace 알림도 B의 Discord 경로를 탐)
+#
+# [사람이 직접 만드는 Secret] (Git에 두지 않음)
+#   - monitoring/keepgo-grafana-admin (키 admin-user, admin-password)
+#   - monitoring/keepgo-alert-discord (키 url)
+
+# CRD는 이미 v0.95.1로 설치돼 있음(keepgo-platform-prereqs). 차트가 다시 관리하면 Argo SSA 소유권이 충돌함
+crds:
+  enabled: false
+
+# EKS는 Control Plane을 AWS가 관리해서 수집할 수 없음. 켜 두면 TargetDown 알림만 계속 울림
+kubeControllerManager: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeEtcd: { enabled: false }
+kubeProxy: { enabled: false }   # EKS kube-proxy 지표는 127.0.0.1에만 열려 있음
+
+defaultRules:
+  create: true
+  rules:
+    etcd: false
+    kubeControllerManager: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeProxy: false
+    windows: false
+
+windowsMonitoring:
+  enabled: false
+
+# PriorityClass: System 노드 컴포넌트는 최상위(5-3 6.6), application 노드의 Prometheus는 keepgo-high
+#   (최상위로 두면 노드가 꽉 찼을 때 핵심 API를 밀어낼 수 있어서 핵심 API와 같은 등급)
+
+# Prometheus Operator: System 노드
+prometheusOperator:
+  priorityClassName: system-cluster-critical
+  nodeSelector: { workload: system }
+  tolerations:
+    - { key: workload, operator: Equal, value: system, effect: NoSchedule }
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+  admissionWebhooks:
+    patch:
+      nodeSelector: { workload: system }
+      tolerations:
+        - { key: workload, operator: Equal, value: system, effect: NoSchedule }
+
+# Prometheus: application 노드(On-Demand). 위키 5-3 6.3(System 노드)과 다르게 결정
+#   이유: System 노드(t3.medium) 메모리 여유가 노드당 약 1.4Gi라 2·3단계 수집기 자리로 남김, 추가 비용 0원
+#   감수: 노드 교체·장애 때 Karpenter도 멈춰 있으면 다시 뜨지 못함 -> Karpenter 지표 수집(아래 extraManifests)
+#   PVC(EBS)는 처음 만들어진 AZ에 묶임 -> 그 AZ의 application 노드로만 재배치됨
+#   [다음 단계] Thanos sidecar + S3 업로드(클러스터를 지워도 지표 유지)
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    scrapeInterval: 30s        # B의 PodMonitor interval과 같게
+    evaluationInterval: 30s
+    retention: 7d
+    retentionSize: 15GB        # PVC 20Gi가 가득 차기 전에 오래된 블록부터 지움
+    externalLabels:
+      cluster: keepgo-dev3
+    priorityClassName: keepgo-high
+    nodeSelector: { workload: application }
+    # Karpenter가 drift 등 자발적 정리로 이 Pod를 옮기지 않게 함 (NodePool expireAfter 720h 교체는 막지 못함)
+    podMetadata:
+      annotations:
+        karpenter.sh/do-not-disrupt: "true"
+    resources:
+      requests: { cpu: 200m, memory: 1Gi }
+      limits: { memory: 2Gi }
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: keepgo-monitoring-gp3
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests: { storage: 20Gi }
+
+# Alertmanager: System 노드. 알림 경로는 B의 AlertmanagerConfig(keepgo-services)
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+    alertmanagerConfigMatcherStrategy:
+      type: None
+    priorityClassName: system-cluster-critical
+    nodeSelector: { workload: system }
+    tolerations:
+      - { key: workload, operator: Equal, value: system, effect: NoSchedule }
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits: { memory: 128Mi }
+
+# Grafana: System 노드. 대시보드는 ConfigMap(sidecar)에서 읽어서 PVC 없음. 접근은 port-forward
+grafana:
+  priorityClassName: system-cluster-critical
+  nodeSelector: { workload: system }
+  tolerations:
+    - { key: workload, operator: Equal, value: system, effect: NoSchedule }
+  admin:
+    existingSecret: keepgo-grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  persistence:
+    enabled: false
+  testFramework:
+    enabled: false
+  defaultDashboardsTimezone: Asia/Seoul
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { memory: 384Mi }
+  sidecar:
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits: { memory: 128Mi }
+    dashboards:
+      label: grafana_dashboard
+      labelValue: "1"
+      folderAnnotation: grafana_folder   # B의 대시보드 ConfigMap 주석 (KeepGo V3 폴더)
+      provider:
+        foldersFromFilesStructure: true
+
+# kube-state-metrics: System 노드
+kube-state-metrics:
+  priorityClassName: system-cluster-critical
+  # 노드 라벨을 kube_node_labels로 내보냄 -> On-Demand/Spot·NodePool·AZ별 노드 수 확인
+  metricLabelsAllowlist:
+    - nodes=[karpenter.sh/capacity-type,karpenter.sh/nodepool,node.kubernetes.io/instance-type,topology.kubernetes.io/zone,workload]
+  nodeSelector: { workload: system }
+  tolerations:
+    - { key: workload, operator: Equal, value: system, effect: NoSchedule }
+  resources:
+    requests: { cpu: 20m, memory: 96Mi }
+    limits: { memory: 192Mi }
+
+# node-exporter: Fargate를 뺀 모든 EC2 노드 (차트 기본 toleration이 모든 NoSchedule taint를 허용)
+prometheus-node-exporter:
+  priorityClassName: system-node-critical
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - { key: eks.amazonaws.com/compute-type, operator: NotIn, values: [fargate] }
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 64Mi }
+
+# Prometheus PVC용 StorageClass (EBS CSI). Redis용 keepgo-redis-gp3-retain과 달리 지우면 볼륨도 삭제
+extraManifests:
+  - apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: keepgo-monitoring-gp3
+    provisioner: ebs.csi.aws.com
+    parameters:
+      type: gp3
+      encrypted: "true"
+      csi.storage.k8s.io/fstype: ext4
+    reclaimPolicy: Delete
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: true
+  # Karpenter(Fargate, Helm으로 직접 설치) 지표. 차트에 ServiceMonitor가 없어서 여기서 만든다
+  # Node 생성 시간, NodePool 사용량, Consolidation·Expiration·Interruption (5-3 7.2)
+  - apiVersion: monitoring.coreos.com/v1
+    kind: ServiceMonitor
+    metadata:
+      name: karpenter
+      namespace: karpenter
+      labels:
+        release: kube-prometheus-stack
+    spec:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: karpenter
+          app.kubernetes.io/instance: karpenter
+      endpoints:
+        - port: http-metrics
+          interval: 30s
