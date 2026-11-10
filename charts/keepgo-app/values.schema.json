@@ -251,6 +251,9 @@
     "extraEnv": {
       "type": "array"
     },
+    "initContainers": {
+      "type": "array"
+    },
     "envFrom": {
       "type": "array"
     },
