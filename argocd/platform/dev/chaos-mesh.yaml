@@ -1,0 +1,61 @@
+# Chaos Mesh(CRD 포함). 소유 A. 주입은 chaos-mesh.org/inject=enabled 주석이 있는 Namespace만
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-chaos-mesh
+  namespace: argocd
+  labels:
+    keepgo.io/env: dev
+    keepgo.io/team: platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  sources:
+    - repoURL: https://charts.chaos-mesh.org
+      chart: chaos-mesh
+      targetRevision: 2.8.8
+      helm:
+        releaseName: chaos-mesh
+        valueFiles:
+          - $values/platform/chaos-mesh/values.yaml
+    - repoURL: https://github.com/100-hours-a-week/KTB4-8th-CLOUD-GITOPS.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: chaos-mesh
+  # 차트가 렌더링할 때마다 인증서·caBundle·rollme 주석을 새로 만듦
+  # 무시하지 않으면 계속 OutOfSync + selfHeal 때마다 controller 재시작
+  ignoreDifferences:
+    - kind: Secret
+      jsonPointers: [/data]
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions: [".webhooks[]?.clientConfig.caBundle"]
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions: [".webhooks[]?.clientConfig.caBundle"]
+    - group: apps
+      kind: Deployment
+      jsonPointers: [/spec/template/metadata/annotations/rollme]
+    - group: apps
+      kind: DaemonSet
+      jsonPointers: [/spec/template/metadata/annotations/rollme]
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # chaos-daemon은 privileged라 이 Namespace만 privileged 허용
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: privileged
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true          # CRD가 커서(최대 1.3MB) 필수
+      - RespectIgnoreDifferences=true # 위 무시 항목을 sync 때도 덮어쓰지 않음
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

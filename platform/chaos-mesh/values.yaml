@@ -1,0 +1,74 @@
+#controller + deshboard. demon은 현재 0개 라벨을 가진 노드를 생성해야함
+
+timezone: "Asia/Seoul"     # Schedule cron 기준 시간
+enableProfiling: false
+
+controllerManager:
+  replicaCount: 1                 # 기본 3 -> dev는 1
+  enableFilterNamespace: true     # chaos-mesh.org/inject=enabled 주석이 있는 Namespace만 주입
+  priorityClassName: system-cluster-critical
+  nodeSelector: { workload: system }
+  tolerations:
+    - { key: workload, operator: Equal, value: system, effect: NoSchedule }
+  resources:
+    requests: { cpu: 25m, memory: 256Mi }
+    limits: { memory: 512Mi }
+
+chaosDaemon:
+  runtime: containerd                        # 기본 docker -> AL2023은 containerd
+  socketPath: /run/containerd/containerd.sock
+  privileged: true
+  # 1단계: 이 라벨을 가진 노드가 없어서 daemon 0개
+  # 2단계: application·worker NodePool 템플릿에 이 라벨을 붙이면 거기에만 뜸 (System 노드 제외)
+  nodeSelector:
+    keepgo.io/chaos-daemon: "enabled"
+  tolerations:
+    - { key: workload, operator: Exists, effect: NoSchedule }
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+
+dashboard:
+  replicaCount: 1
+  securityMode: true              # 토큰 로그인 필수
+  service: { type: ClusterIP }    # 기본 NodePort -> 외부 노출 안 함
+  nodeSelector: { workload: system }
+  tolerations:
+    - { key: workload, operator: Equal, value: system, effect: NoSchedule }
+  resources:
+    requests: { cpu: 25m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+dnsServer:
+  create: false    # DNSChaos는 쓰지 않음 (System 노드 메모리 절약)
+
+# 대시보드 로그인 계정. operator = 실험 생성·삭제(A), viewer = 조회만(팀원)
+extraObjects:
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata: { name: chaos-operator, namespace: chaos-mesh }
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata: { name: chaos-viewer, namespace: chaos-mesh }
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata: { name: keepgo-chaos-operator }
+    rules:
+      - { apiGroups: [""], resources: [pods, namespaces], verbs: [get, list, watch] }
+      - { apiGroups: [chaos-mesh.org], resources: ["*"], verbs: [get, list, watch, create, delete, patch, update] }
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata: { name: keepgo-chaos-viewer }
+    rules:
+      - { apiGroups: [""], resources: [pods, namespaces], verbs: [get, list, watch] }
+      - { apiGroups: [chaos-mesh.org], resources: ["*"], verbs: [get, list, watch] }
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata: { name: keepgo-chaos-operator }
+    roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: keepgo-chaos-operator }
+    subjects: [{ kind: ServiceAccount, name: chaos-operator, namespace: chaos-mesh }]
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata: { name: keepgo-chaos-viewer }
+    roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: keepgo-chaos-viewer }
+    subjects: [{ kind: ServiceAccount, name: chaos-viewer, namespace: chaos-mesh }]
