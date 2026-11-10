@@ -153,6 +153,22 @@ grafana:
       folderAnnotation: grafana_folder   # B의 대시보드 ConfigMap 주석 (KeepGo V3 폴더)
       provider:
         foldersFromFilesStructure: true
+  # AWS 자원(ALB·RDS·SQS 지표, CloudWatch Logs Insights) 조회용. 자격증명은 키가 아니라 EKS Pod Identity:
+  #   monitoring/kube-prometheus-stack-grafana → IAM keepgo-dev3-grafana-role
+  #   (CloudWatchReadOnlyAccess + AWSXrayReadOnlyAccess, 11-10 콘솔 대신 CLI로 생성)
+  additionalDataSources:
+    - name: CloudWatch
+      uid: cloudwatch
+      type: cloudwatch
+      access: proxy
+      editable: false
+      jsonData:
+        authType: default          # AWS SDK 기본 체인 → Pod Identity가 넣어 준 자격증명 사용
+        defaultRegion: ap-northeast-2
+  # Pod Identity 자격증명(환경변수)은 파드가 새로 만들어질 때만 들어간다.
+  # 데이터 소스는 sidecar가 재시작 없이 다시 읽으므로, 연결 시점 표시를 바꿔 파드를 한 번 새로 띄운다.
+  podAnnotations:
+    keepgo.io/pod-identity: "2026-11-10"
 
 # kube-state-metrics: System 노드
 kube-state-metrics:
