@@ -11,6 +11,19 @@ probes:
 env:
   # Tomcat 스레드·연결 지표(tomcat_threads_busy_threads 등)를 Actuator로 낸다. 코드 변경 없음
   SERVER_TOMCAT_MBEANREGISTRY_ENABLED: "true"
+  # 기존 힙 설정(차트 기본값)을 유지하고 agent를 뒤에 붙인다. 덮어쓰면 힙이 기본값(25%)으로 돌아간다
+  JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70.0 -javaagent:/otel/javaagent.jar
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.tracing.svc.cluster.local:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  # 처음에는 전부(1.0) 남겨 확인하고, 부하 테스트 전에 0.1로 내린다(X-Ray 무료 월 10만 건)
+  OTEL_TRACES_SAMPLER: parentbased_traceidratio
+  OTEL_TRACES_SAMPLER_ARG: "1.0"
+  # 메트릭은 Prometheus, 로그는 Fluent Bit가 맡으므로 agent로는 보내지 않는다
+  OTEL_METRICS_EXPORTER: none
+  OTEL_LOGS_EXPORTER: none
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=dev3,service.namespace=keepgo
+  # 로그를 JSON(ECS)으로. agent가 넣은 trace_id·span_id가 필드로 들어가 Logs Insights에서 검색된다
+  LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
   DB_VENDOR: mysql
   DB_PORT: "3306"
   DB_NAME: keepgo
@@ -44,3 +57,28 @@ env:
 # 앱 Pod는 Application NodePool(On-Demand)에만(partA NodePool 라벨). worker는 서비스 values에서 바꾼다.
 nodeSelector:
   workload: application
+
+# [6단계 트레이스] OTel Java Agent. 앱 코드 변경 없이 HTTP·JDBC·Redis·HTTP 클라이언트 구간을 자동 기록한다.
+# agent jar는 이미지에 없으므로 initContainer가 공용 이미지에서 꺼내 emptyDir(/otel)에 복사한다.
+extraVolumes:
+  - { name: otel-agent, mountPath: /otel, sizeLimit: 64Mi }
+initContainers:
+  - name: otel-agent
+    # opentelemetry-java-instrumentation v2.32.0(10-03 배포)을 담은 공식 이미지
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.32.0
+    command: ["cp", "/javaagent.jar", "/otel/javaagent.jar"]
+    volumeMounts:
+      - { name: otel-agent, mountPath: /otel }
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities: { drop: ["ALL"] }
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits: { memory: 64Mi }
+extraEnv:
+  # 서비스 이름 = Deployment 라벨(auth-api, chat-api …). X-Ray 서비스 맵에 이 이름으로 보인다
+  - name: OTEL_SERVICE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.labels['app.kubernetes.io/name']
