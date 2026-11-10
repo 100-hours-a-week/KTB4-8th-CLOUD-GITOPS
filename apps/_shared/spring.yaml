@@ -15,7 +15,8 @@ env:
   JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70.0 -javaagent:/otel/javaagent.jar
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.tracing.svc.cluster.local:4318
   OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-  # 처음에는 전부(1.0) 남겨 확인하고, 부하 테스트 전에 0.1로 내린다(X-Ray 무료 월 10만 건)
+  # 앱은 전부(1.0) 보내고, 무엇을 남길지는 Collector가 정한다(platform/otel-collector: 헬스체크 제외,
+  # 오류·2초 이상 전부, 나머지 10%). 여기서 낮추면 오류 트레이스까지 같은 비율로 버려진다
   OTEL_TRACES_SAMPLER: parentbased_traceidratio
   OTEL_TRACES_SAMPLER_ARG: "1.0"
   # 메트릭은 Prometheus, 로그는 Fluent Bit가 맡으므로 agent로는 보내지 않는다

@@ -52,7 +52,30 @@ config:
       check_interval: 1s
       limit_percentage: 80
       spike_limit_percentage: 20
-    batch: {}
+    # ① 쓸모없는 구간을 버린다(11-10 측정: 15분 375건 중 헬스체크 195·부모 없는 DB 구간 168·실제 API 12)
+    #   - 쿠버네티스 헬스체크(/actuator/health/…, 10초마다)
+    #   - 요청 없이 생긴 DB 호출(커넥션 풀 점검 등): 부모가 없는 CLIENT 구간
+    filter/noise:
+      error_mode: ignore
+      traces:
+        span:
+          - 'IsMatch(attributes["url.path"], "^/actuator")'
+          - 'IsRootSpan() and kind == SPAN_KIND_CLIENT'
+    # ② 요청 하나(Trace)가 끝날 때까지 모았다가 저장 여부를 정한다. 셋 중 하나라도 해당하면 저장
+    #   오류는 전부, 2초 넘게 느린 요청은 전부, 나머지는 10%. Trace 단위로 모아야 해서 Collector는 1개여야 한다
+    tail_sampling:
+      decision_wait: 10s
+      num_traces: 20000
+      policies:
+        - name: errors
+          type: status_code
+          status_code: { status_codes: [ERROR] }
+        - name: slow
+          type: latency
+          latency: { threshold_ms: 2000 }
+        - name: rest-10pct
+          type: probabilistic
+          probabilistic: { sampling_percentage: 10 }
   exporters:
     debug: null
     awsxray:
@@ -61,7 +84,7 @@ config:
     pipelines:
       traces:
         receivers: [otlp]
-        processors: [memory_limiter, batch]
+        processors: [memory_limiter, filter/noise, tail_sampling, batch]
         exporters: [awsxray]
       metrics: null
       logs: null
