@@ -18,11 +18,11 @@ externalSecrets:
   items:
     - name: env
       asEnv: true
+      # Secret-v1-BE의 키를 통째로 환경변수로 넣는다(V2와 같음). 개발팀이 키를 추가해도 values를 고치지 않는다.
+      dataFrom:
+        - extract: { key: Secret-v1-BE }
+      # DB 계정은 RDS 관리 Secret의 키 이름(username·password)이 달라 골라서 넣는다. data가 dataFrom보다 나중에 적용된다.
       data:
-        - { secretKey: GOOGLE_CLIENT_SECRET, remoteRef: { key: Secret-v1-BE, property: GOOGLE_CLIENT_SECRET } }
-        - { secretKey: GOOGLE_LOGIN_CLIENT_ID, remoteRef: { key: Secret-v1-BE, property: GOOGLE_LOGIN_CLIENT_ID } }
-        - { secretKey: GOOGLE_LOGIN_CLIENT_SECRET, remoteRef: { key: Secret-v1-BE, property: GOOGLE_LOGIN_CLIENT_SECRET } }
-        - { secretKey: VWORLD_API_KEY, remoteRef: { key: Secret-v1-BE, property: VWORLD_API_KEY } }
         # [가정] V2 RDS 관리 Secret의 이름. 실제 ARN/이름으로 바꾼다.
         - { secretKey: DB_USERNAME, remoteRef: { key: keepgo/prod/rds, property: username } }
         - { secretKey: DB_PASSWORD, remoteRef: { key: keepgo/prod/rds, property: password } }
