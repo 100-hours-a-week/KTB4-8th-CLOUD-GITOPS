@@ -23,6 +23,7 @@ externalSecrets:
         - { secretKey: GOOGLE_LOGIN_CLIENT_ID, remoteRef: { key: Secret-v1-BE, property: GOOGLE_LOGIN_CLIENT_ID } }
         - { secretKey: GOOGLE_LOGIN_CLIENT_SECRET, remoteRef: { key: Secret-v1-BE, property: GOOGLE_LOGIN_CLIENT_SECRET } }
         - { secretKey: VWORLD_API_KEY, remoteRef: { key: Secret-v1-BE, property: VWORLD_API_KEY } }
+        - { secretKey: KAKAO_REST_API_KEY, remoteRef: { key: Secret-v1-BE, property: KAKAO_REST_API_KEY } }
         # [가정] V2 RDS 관리 Secret의 이름. 실제 ARN/이름으로 바꾼다.
         - { secretKey: DB_USERNAME, remoteRef: { key: keepgo/prod/rds, property: username } }
         - { secretKey: DB_PASSWORD, remoteRef: { key: keepgo/prod/rds, property: password } }

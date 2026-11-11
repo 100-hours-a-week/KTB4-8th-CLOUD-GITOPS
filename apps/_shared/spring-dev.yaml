@@ -25,6 +25,7 @@ externalSecrets:
         - { secretKey: GOOGLE_LOGIN_CLIENT_ID, remoteRef: { key: keepgo/dev3/backend, property: GOOGLE_LOGIN_CLIENT_ID } }
         - { secretKey: GOOGLE_LOGIN_CLIENT_SECRET, remoteRef: { key: keepgo/dev3/backend, property: GOOGLE_LOGIN_CLIENT_SECRET } }
         - { secretKey: VWORLD_API_KEY, remoteRef: { key: keepgo/dev3/backend, property: VWORLD_API_KEY } }
+        - { secretKey: KAKAO_REST_API_KEY, remoteRef: { key: keepgo/dev3/backend, property: KAKAO_REST_API_KEY } }
         - { secretKey: DB_USERNAME, remoteRef: { key: keepgo/dev3/rds, property: username } }
         - { secretKey: DB_PASSWORD, remoteRef: { key: keepgo/dev3/rds, property: password } }
     - name: jwt
