@@ -17,7 +17,7 @@ KeepGo V3(EKS) 배포 설정 저장소. Argo CD가 이 저장소를 기준으로
 | 하고 싶은 것 | 방법 |
 |---|---|
 | 서비스 설정 바꾸기 | `apps/<ns>/<서비스>/values*.yaml` 수정 PR → merge되면 Argo CD가 반영 |
-| dev 배포 | 앱 저장소 main merge → CI가 `values-dev`(Spring은 `_shared/spring-dev.yaml`) 태그 커밋 |
+| dev 배포 | 앱 저장소 `develop` merge → 앱 CI가 ECR에 이미지 push → EventBridge가 `auto-release-dev` 실행 → `values-dev` 태그 PR 자동 병합(`release/dev.json`, `scripts/release.py`). 지금 상태 미리 보기: Actions → `auto-release-dev` → `dry_run` |
 | prod 배포 | Actions → `promote-prod` 실행(스택·태그) → 생성된 PR 승인·merge |
 | 롤백 | 태그 변경 커밋 `git revert` |
 | 새 서비스 | `apps/<ns>/<새 서비스>/` 폴더와 values 추가(ApplicationSet이 Application 생성) |

@@ -1,6 +1,6 @@
-# Spring 서비스 dev 공통. CI(build-and-bump)가 image.tag를 이 파일에 커밋한다.
+# Spring 서비스 dev 공통. auto-release-dev(scripts/release.py)가 image.tag를 이 파일에 커밋한다.
 image:
-  # V2 운영 backend 이미지로 시작한다. 첫 V3 빌드부터 CI가 바꾼다.
+  # V2 운영 backend 이미지로 시작한다. auto-release-dev가 KTB4-8th-BE develop 이미지로 바꾼다.
   tag: "503a23686080485cae89c0cae152a33e3aac8528"
 
 env:

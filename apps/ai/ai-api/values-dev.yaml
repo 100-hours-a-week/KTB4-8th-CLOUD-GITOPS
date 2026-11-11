@@ -1,5 +1,5 @@
 image:
-  # V2 운영 ai 이미지로 시작한다. 첫 V3 빌드부터 CI가 바꾼다.
+  # V2 운영 ai 이미지로 시작한다. auto-release-dev가 KTB4-8th-AI develop 이미지로 바꾼다.
   tag: "6e9c5cf7b2993238b613804fb1a6fdd7bf04657b"
 
 autoscaling:
