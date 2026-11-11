@@ -84,7 +84,8 @@ prometheusOperator:
 #   이유: System 노드(t3.medium) 메모리 여유가 노드당 약 1.4Gi라 2·3단계 수집기 자리로 남김, 추가 비용 0원
 #   감수: 노드 교체·장애 때 Karpenter도 멈춰 있으면 다시 뜨지 못함 -> Karpenter 지표 수집(아래 extraManifests)
 #   PVC(EBS)는 처음 만들어진 AZ에 묶임 -> 그 AZ의 application 노드로만 재배치됨
-#   [다음 단계] Thanos sidecar + S3 업로드(클러스터를 지워도 지표 유지)
+#   Thanos sidecar가 2시간마다 TSDB 블록을 S3(keepgo-dev3-thanos-602601433533, 90일 뒤 삭제)에 올린다
+#   → 클러스터를 지웠다 다시 만들어도 과거 지표가 S3에 남는다. 조회용 Store·Querier·Compactor는 필요할 때 추가
 prometheus:
   prometheusSpec:
     replicas: 1
@@ -110,6 +111,22 @@ prometheus:
           accessModes: [ReadWriteOnce]
           resources:
             requests: { storage: 20Gi }
+    # Thanos sidecar(9단계). 자격증명은 키가 아니라 EKS Pod Identity:
+    #   monitoring/kube-prometheus-stack-prometheus → IAM keepgo-dev3-thanos-role (이 버킷만 List·Get·Put·Delete)
+    # sidecar를 켜면 operator가 Prometheus의 로컬 압축을 끄고 블록을 2시간 단위로 둔다(업로드 단위)
+    thanos:
+      resources:
+        requests: { cpu: 25m, memory: 64Mi }
+        limits: { memory: 256Mi }
+      objectStorageConfig:
+        secret:
+          type: S3
+          config:
+            bucket: keepgo-dev3-thanos-602601433533
+            endpoint: s3.ap-northeast-2.amazonaws.com
+            region: ap-northeast-2
+            # AWS SDK 기본 자격증명 체인 → Pod Identity가 넣어 준 자격증명. 키를 적지 않는다
+            aws_sdk_auth: true
 
 # Alertmanager: System 노드. 알림 경로는 B의 AlertmanagerConfig(keepgo-services)
 alertmanager:
