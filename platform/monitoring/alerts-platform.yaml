@@ -91,7 +91,8 @@ spec:
             summary: "Fluent Bit {{ $labels.pod }}가 CloudWatch Logs로 보내지 못하고 버리는 중"
             description: "먼저 볼 것: kubectl logs -n logging {{ $labels.pod }} 의 [error], Pod Identity 연결(logging/fluent-bit), IAM 권한"
         - alert: KeepgoPlatformTraceExportFailing
-          expr: sum(rate(otelcol_exporter_send_failed_spans_total[5m])) > 0
+          # Collector 0.162 내부 지표는 _total 접미사가 없다(예: otelcol_receiver_accepted_spans). 첫 실패 때 생긴다
+          expr: sum(rate(otelcol_exporter_send_failed_spans[5m])) > 0
           for: 10m
           labels: { severity: warning, component: tracing }
           annotations:
