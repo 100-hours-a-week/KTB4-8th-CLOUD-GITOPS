@@ -34,5 +34,19 @@ spec:
             name: keepgo-alert-discord
             key: url
           sendResolved: true
-          title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} {{ .CommonLabels.namespace }}/{{ .CommonLabels.service }}'
-          message: '{{ range .Alerts }}{{ .Annotations.summary }} ({{ .Labels.severity }}){{ "\n" }}{{ end }}'
+          # 제목: 🔴 발생 / ✅ 해제 + 알림 이름 + namespace/service(플랫폼 알림은 component)
+          title: '{{ if eq .Status "firing" }}🔴 발생{{ else }}✅ 해제{{ end }} {{ .CommonLabels.alertname }} · {{ with .CommonLabels.namespace }}{{ . }}/{{ end }}{{ or .CommonLabels.service .CommonLabels.component "" }}'
+          # 본문(11-11 개선, A):
+          #   알림마다  요약(지금 값·기준값) · 심각도 · 시작 시각(KST, 해제면 해제 시각)
+          #   묶음 공통 먼저 볼 것(description) + Grafana 링크(트레이스·로그·대시보드, 차트의 alerts.links)
+          #   같은 서비스·같은 알림끼리 묶이므로(groupBy) 링크는 한 번만 붙인다(Discord 본문 4096자 제한)
+          message: |-
+            {{ range .Alerts }}{{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }} **{{ .Annotations.summary }}**
+            심각도 `{{ .Labels.severity }}` · 시작 {{ .StartsAt | tz "Asia/Seoul" | date "01-02 15:04:05" }} KST{{ if eq .Status "resolved" }} · 해제 {{ .EndsAt | tz "Asia/Seoul" | date "15:04:05" }}{{ end }}
+            {{ end }}{{ if eq .Status "firing" }}{{ with .CommonAnnotations.description }}
+            🔎 **먼저 볼 것**: {{ . }}
+            {{ end }}{{ if or .CommonAnnotations.trace_url .CommonAnnotations.logs_url .CommonAnnotations.dashboard_url }}
+            {{ with .CommonAnnotations.trace_url }}🧵 [트레이스 (X-Ray, 오류·느린 요청)]({{ . }})
+            {{ end }}{{ with .CommonAnnotations.logs_url }}📜 [로그 (ERROR·예외, trace_id 포함)]({{ . }})
+            {{ end }}{{ with .CommonAnnotations.dashboard_url }}📊 [서비스 대시보드]({{ . }})
+            {{ end }}_링크는 Grafana port-forward(3000:80)를 켠 상태에서 열립니다_{{ end }}{{ end }}
