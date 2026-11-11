@@ -1,6 +1,6 @@
 image:
   # V2 운영 ai 이미지로 시작한다. auto-release-dev가 KTB4-8th-AI develop 이미지로 바꾼다.
-  tag: "6e9c5cf7b2993238b613804fb1a6fdd7bf04657b"
+  tag: "e355d38dd41cdfbc2a419c537894eedd1011200c"
 
 autoscaling:
   minReplicas: 1
