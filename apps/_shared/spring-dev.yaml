@@ -20,12 +20,11 @@ externalSecrets:
   items:
     - name: env
       asEnv: true
+      # keepgo/dev3/backend의 키를 통째로 환경변수로 넣는다(V2와 같음). 개발팀이 키를 추가해도 values를 고치지 않는다.
+      dataFrom:
+        - extract: { key: keepgo/dev3/backend }
+      # DB 계정은 RDS 관리 Secret의 키 이름(username·password)이 달라 골라서 넣는다. data가 dataFrom보다 나중에 적용된다.
       data:
-        - { secretKey: GOOGLE_CLIENT_SECRET, remoteRef: { key: keepgo/dev3/backend, property: GOOGLE_CLIENT_SECRET } }
-        - { secretKey: GOOGLE_LOGIN_CLIENT_ID, remoteRef: { key: keepgo/dev3/backend, property: GOOGLE_LOGIN_CLIENT_ID } }
-        - { secretKey: GOOGLE_LOGIN_CLIENT_SECRET, remoteRef: { key: keepgo/dev3/backend, property: GOOGLE_LOGIN_CLIENT_SECRET } }
-        - { secretKey: VWORLD_API_KEY, remoteRef: { key: keepgo/dev3/backend, property: VWORLD_API_KEY } }
-        - { secretKey: KAKAO_REST_API_KEY, remoteRef: { key: keepgo/dev3/backend, property: KAKAO_REST_API_KEY } }
         - { secretKey: DB_USERNAME, remoteRef: { key: keepgo/dev3/rds, property: username } }
         - { secretKey: DB_PASSWORD, remoteRef: { key: keepgo/dev3/rds, property: password } }
     - name: jwt
