@@ -167,9 +167,10 @@ grafana:
     auth.github:
       enabled: true
       allow_sign_up: true
-      # 조직·팀 권한(read:org)은 요청하지 않는다. 100-hours-a-week 조직이 외부 앱을 제한해서
-      # 운영진 승인 전에는 팀 정보가 앱에 보이지 않고, team_ids 방식은 8조 팀원도 거절됐다(11-11)
-      scopes: user:email
+      # read:org는 꼭 필요하다. Grafana가 로그인마다 /user/teams를 부르고, 권한이 없으면 404로 로그인 실패(11-11 확인).
+      # 단, 팀으로 거르지는 않는다. 100-hours-a-week 조직이 외부 앱을 제한해서 운영진 승인 전에는
+      # 팀 정보가 비어 오고, team_ids 방식은 8조 팀원도 거절됐다(11-11). 인증 화면의 조직 Grant/Request는 누를 필요 없음
+      scopes: user:email,read:org
       auth_url: https://github.com/login/oauth/authorize
       token_url: https://github.com/login/oauth/access_token
       api_url: https://api.github.com/user
