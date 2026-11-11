@@ -164,11 +164,14 @@ grafana:
     users:
       # GitHub로 처음 들어온 사람의 권한. 수정은 로컬 admin이 한다
       auto_assign_org_role: Viewer
+      # Viewer도 Explore(트레이스·로그 조회)를 쓰게 한다. 기본값이면 Viewer는 Explore에서 홈으로 튕겨서
+      # Discord 알림의 트레이스·로그 링크가 열리지 않았다(11-11). 대시보드 저장 권한은 생기지 않는다(화면에서 임시 수정만)
+      viewers_can_edit: true
     # GitHub 로그인(11-11 최종). 조직·팀 권한 없이 "GitHub 아이디"만 받아서 명단으로 거른다.
     # auth.github(전용 연동)은 로그인마다 /user/teams를 불러 read:org가 꼭 필요하고,
     # 그러면 인증 화면에 조직 목록(Grant/Request)이 뜬다. 100-hours-a-week는 외부 앱을 제한해서 팀 확인도 안 됐다.
     # 그래서 범용 OAuth(generic_oauth)로 GitHub에 붙인다: 팀 조회를 안 하고, 권한은 user:email만.
-    # GitHub OAuth App의 Authorization callback URL은 https://dev3.keepgo.kr/grafana/login 이어야 한다(하위 경로 허용)
+    # GitHub OAuth App의 Redirect URI는 https://dev3.keepgo.kr/grafana/login/generic_oauth (글자 그대로 일치해야 함, wildcard 끔)
     auth.generic_oauth:
       enabled: true
       name: GitHub
