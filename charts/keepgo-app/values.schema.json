@@ -665,6 +665,18 @@
               "type": "number"
             }
           }
+        },
+        "links": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "grafanaUrl": {
+              "type": "string"
+            },
+            "logGroupPrefix": {
+              "type": "string"
+            }
+          }
         }
       }
     },

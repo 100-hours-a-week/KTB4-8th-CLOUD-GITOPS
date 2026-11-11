@@ -1,11 +1,36 @@
 {{- /*
 서비스 기본 알림(5-3 7.2, WBS 18). 임계값은 values로 바꾼다.
 kube-state-metrics(재시작·OOM·Replica 부족)는 모든 서비스, HTTP 오류율·지연은 http 지표가 있는 서비스만.
+
+알림 메시지(Discord)에 넣는 값
+  summary     : 지금 값과 기준값을 함께(예: 5xx 비율 87% (기준 5%))
+  description : 먼저 볼 것
+  trace_url · logs_url · dashboard_url : alerts.links.grafanaUrl이 있을 때만. Grafana Explore를 미리 채운 링크
+    - 트레이스: X-Ray에서 이 서비스의 오류(fault·error)·느린 요청, 최근 1시간
+    - 로그    : CloudWatch Logs Insights에서 이 서비스 파드의 ERROR·WARN·예외 로그(trace_id 포함), 최근 1시간
+    - 대시보드: KeepGo V3 / 서비스(namespace·service 선택된 상태)
+  Prometheus가 알림을 보낼 때 채우는 {{ $value }}·{{ $labels.pod }}는 Helm이 먼저 해석하지 않게 백틱 문자열로 넘긴다.
 */}}
 {{- $a := .Values.alerts }}
 {{- if $a.enabled }}
 {{- $name := include "keepgo-app.fullname" . }}
 {{- $ns := .Release.Namespace }}
+{{- $links := $a.links | default dict }}
+{{- $traceUrl := "" }}
+{{- $logsUrl := "" }}
+{{- $dashUrl := "" }}
+{{- if $links.grafanaUrl }}
+{{- $p95 := 1 }}
+{{- if $a.http }}{{- $p95 = $a.http.p95Seconds | default 1 }}{{- end }}
+{{- $xq := dict "refId" "A" "datasource" (dict "type" "grafana-x-ray-datasource" "uid" "xray") "queryType" "getTraceSummaries" "region" "default" "query" (printf "service(\"%s\") AND (fault OR error OR responsetime > %v)" $name $p95) }}
+{{- $traceUrl = printf "%s/explore?schemaVersion=1&orgId=1&panes=%s" $links.grafanaUrl (dict "a" (dict "datasource" "xray" "queries" (list $xq) "range" (dict "from" "now-1h" "to" "now")) | toJson | urlquery) }}
+{{- if $links.logGroupPrefix }}
+{{- $expr := printf "fields @timestamp, kubernetes.pod_name, log.level, message, error.type, trace_id | filter kubernetes.pod_name like /^%s-/ | filter log.level in [\"ERROR\",\"WARN\"] or ispresent(error.type) or @message like /(?i)(error|exception|traceback)/ | sort @timestamp desc | limit 100" $name }}
+{{- $lq := dict "refId" "A" "datasource" (dict "type" "cloudwatch" "uid" "cloudwatch") "queryMode" "Logs" "region" "default" "id" "" "logGroupNames" (list (printf "%s/%s" $links.logGroupPrefix $ns)) "expression" $expr }}
+{{- $logsUrl = printf "%s/explore?schemaVersion=1&orgId=1&panes=%s" $links.grafanaUrl (dict "a" (dict "datasource" "cloudwatch" "queries" (list $lq) "range" (dict "from" "now-1h" "to" "now")) | toJson | urlquery) }}
+{{- end }}
+{{- $dashUrl = printf "%s/d/keepgo-v3-service?orgId=1&var-namespace=%s&var-service=%s&from=now-1h&to=now" $links.grafanaUrl $ns $name }}
+{{- end }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -22,20 +47,44 @@ spec:
         - alert: KeepgoPodRestarting
           expr: increase(kube_pod_container_status_restarts_total{namespace="{{ $ns }}", pod=~"{{ $name }}-.*"}[15m]) > {{ $a.restartsIn15m }}
           for: 5m
-          labels: {severity: warning, service: {{ $name }}}
+          labels: {severity: warning, namespace: {{ $ns }}, service: {{ $name }}}
           annotations:
-            summary: "{{ $name }} Pod가 15분 동안 {{ $a.restartsIn15m }}회 넘게 재시작"
+            summary: {{ printf "%s Pod %s가 15분 동안 %s회 재시작 (기준 %v회 초과)" $name `{{ $labels.pod }}` `{{ printf "%.0f" $value }}` $a.restartsIn15m | quote }}
+            description: "kubectl logs --previous 로 직전 종료 원인, kubectl describe pod 의 Last State(OOMKilled·Error·종료 코드) 확인"
+            {{- with $traceUrl }}
+            trace_url: {{ . | quote }}
+            {{- end }}
+            {{- with $logsUrl }}
+            logs_url: {{ . | quote }}
+            {{- end }}
+            {{- with $dashUrl }}
+            dashboard_url: {{ . | quote }}
+            {{- end }}
         - alert: KeepgoPodOOMKilled
           expr: max by (pod) (kube_pod_container_status_last_terminated_reason{namespace="{{ $ns }}", pod=~"{{ $name }}-.*", reason="OOMKilled"}) > 0
-          labels: {severity: warning, service: {{ $name }}}
+          labels: {severity: warning, namespace: {{ $ns }}, service: {{ $name }}}
           annotations:
-            summary: "{{ $name }} 컨테이너가 메모리 부족(OOMKilled)으로 종료됨. resources.limits.memory 확인"
+            summary: {{ printf "%s Pod %s가 메모리 부족(OOMKilled)으로 종료됨" $name `{{ $labels.pod }}` | quote }}
+            description: {{ printf "대시보드의 JVM Heap·컨테이너 메모리 추이 확인. limits.memory %v" (.Values.resources.limits.memory | default "-") | quote }}
+            {{- with $logsUrl }}
+            logs_url: {{ . | quote }}
+            {{- end }}
+            {{- with $dashUrl }}
+            dashboard_url: {{ . | quote }}
+            {{- end }}
         - alert: KeepgoReplicasUnavailable
           expr: kube_deployment_status_replicas_unavailable{namespace="{{ $ns }}", deployment="{{ $name }}"} > 0
           for: {{ $a.unavailableFor }}
-          labels: {severity: critical, service: {{ $name }}}
+          labels: {severity: critical, namespace: {{ $ns }}, service: {{ $name }}}
           annotations:
-            summary: "{{ $name }} Ready가 아닌 Pod가 {{ $a.unavailableFor }} 넘게 있음(배포 멈춤·Pending·CrashLoop)"
+            summary: {{ printf "%s Ready가 아닌 Pod %s개가 %s 넘게 있음" $name `{{ printf "%.0f" $value }}` $a.unavailableFor | quote }}
+            description: "kubectl describe pod 의 Events 확인. 배포 멈춤(이미지·설정 오류), Pending(노드·quota), CrashLoop 중 무엇인지 먼저 구분"
+            {{- with $logsUrl }}
+            logs_url: {{ . | quote }}
+            {{- end }}
+            {{- with $dashUrl }}
+            dashboard_url: {{ . | quote }}
+            {{- end }}
     {{- if $a.http.enabled }}
     - name: {{ $name }}.http
       rules:
@@ -44,15 +93,35 @@ spec:
             sum(rate({{ $a.http.requestsMetric }}_count{namespace="{{ $ns }}", app_kubernetes_io_name="{{ $name }}", {{ $a.http.statusLabel }}=~"5.."}[5m]))
               / sum(rate({{ $a.http.requestsMetric }}_count{namespace="{{ $ns }}", app_kubernetes_io_name="{{ $name }}"}[5m])) > {{ $a.http.errorRatio }}
           for: 5m
-          labels: {severity: critical, service: {{ $name }}}
+          labels: {severity: critical, namespace: {{ $ns }}, service: {{ $name }}}
           annotations:
-            summary: "{{ $name }} 5xx 비율이 {{ $a.http.errorRatio }}를 넘음"
+            summary: {{ printf "%s 5xx 비율 %s (기준 %.0f%%), 최근 5분" $name `{{ $value | humanizePercentage }}` (mulf $a.http.errorRatio 100) | quote }}
+            description: "트레이스 링크에서 fault 요청의 예외(Exception)와 URL을 보고, 같은 trace_id로 로그 링크에서 스택을 확인. 클라이언트 IP·User-Agent로 실제 사용자인지 테스트 트래픽인지 구분"
+            {{- with $traceUrl }}
+            trace_url: {{ . | quote }}
+            {{- end }}
+            {{- with $logsUrl }}
+            logs_url: {{ . | quote }}
+            {{- end }}
+            {{- with $dashUrl }}
+            dashboard_url: {{ . | quote }}
+            {{- end }}
         - alert: KeepgoHighLatencyP95
           expr: |
             histogram_quantile(0.95, sum by (le) (rate({{ $a.http.requestsMetric }}_bucket{namespace="{{ $ns }}", app_kubernetes_io_name="{{ $name }}"}[5m]))) > {{ $a.http.p95Seconds }}
           for: 10m
-          labels: {severity: warning, service: {{ $name }}}
+          labels: {severity: warning, namespace: {{ $ns }}, service: {{ $name }}}
           annotations:
-            summary: "{{ $name }} p95 응답 시간이 {{ $a.http.p95Seconds }}초를 넘음"
+            summary: {{ printf "%s p95 응답 시간 %s (기준 %v초), 최근 5분" $name `{{ $value | humanizeDuration }}` $a.http.p95Seconds | quote }}
+            description: "트레이스 링크에서 느린 요청의 구간(DB·Redis·AI 호출) 중 어디서 시간을 썼는지 확인. 대시보드의 DB 커넥션 대기(hikaricp pending)도 함께 확인"
+            {{- with $traceUrl }}
+            trace_url: {{ . | quote }}
+            {{- end }}
+            {{- with $logsUrl }}
+            logs_url: {{ . | quote }}
+            {{- end }}
+            {{- with $dashUrl }}
+            dashboard_url: {{ . | quote }}
+            {{- end }}
     {{- end }}
 {{- end }}

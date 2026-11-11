@@ -379,6 +379,12 @@ alerts:
     errorRatio: 0.05
     # SSE처럼 오래 열린 요청은 지연 알림이 의미가 없으므로 서비스 values에서 끈다.
     p95Seconds: 1
+  # 알림 메시지에 붙일 Grafana 링크(트레이스·로그·대시보드). 비우면 링크 없이 보낸다. 환경별 values에 둔다.
+  links:
+    # 예) http://localhost:3000 (port-forward 3000:80 기준)
+    grafanaUrl: ""
+    # CloudWatch Logs 그룹 앞부분. 그룹은 <prefix>/<namespace> (Fluent Bit). 예) /aws/eks/keepgo-dev3
+    logGroupPrefix: ""
 
 # helm test용 연결 확인 Pod. Argo CD는 helm test를 쓰지 않으므로 기본은 끈다(kind·CI에서 켠다).
 tests:
