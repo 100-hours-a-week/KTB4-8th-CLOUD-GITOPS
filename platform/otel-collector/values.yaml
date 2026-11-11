@@ -35,6 +35,14 @@ ports:
   jaeger-thrift: { enabled: false }
   jaeger-grpc: { enabled: false }
   zipkin: { enabled: false }
+  # Collector 자체 지표(보낸·실패한 Span 수, 큐). 아래 ServiceMonitor가 수집한다
+  metrics: { enabled: true }
+
+# 10단계 알림 KeepgoPlatformTraceExportFailing(otelcol_exporter_send_failed_spans_total)이 이 지표를 쓴다
+serviceMonitor:
+  enabled: true
+  extraLabels:
+    release: kube-prometheus-stack
 
 config:
   receivers:
