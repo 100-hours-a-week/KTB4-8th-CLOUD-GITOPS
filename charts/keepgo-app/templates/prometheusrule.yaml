@@ -1,6 +1,6 @@
 {{- /*
 서비스 기본 알림(5-3 7.2, WBS 18). 임계값은 values로 바꾼다.
-kube-state-metrics(재시작·OOM·Replica 부족)는 모든 서비스, HTTP 오류율·지연은 http 지표가 있는 서비스만.
+kube-state-metrics(재시작·OOM·서비스 다운·Replica 부족)는 모든 서비스(다운은 minReplicas 1 이상만), HTTP 오류율·지연은 http 지표가 있는 서비스만.
 
 알림 메시지(Discord)에 넣는 값
   summary     : 지금 값과 기준값을 함께(예: 5xx 비율 87% (기준 5%))
@@ -72,6 +72,23 @@ spec:
             {{- with $dashUrl }}
             dashboard_url: {{ . | quote }}
             {{- end }}
+        {{- if ge (int (include "keepgo-app.minReplicas" .)) 1 }}
+        # 서비스 다운: 최근 downWindow 안에 가용 Pod가 0개였던 적이 있으면 즉시(for 없음). 다운이 끝나도 downWindow 동안 유지 후 해제
+        - alert: KeepgoServiceDown
+          expr: |
+            min_over_time(kube_deployment_status_replicas_available{namespace="{{ $ns }}", deployment="{{ $name }}"}[{{ $a.downWindow | default "2m" }}]) == 0
+              and on(namespace, deployment) kube_deployment_spec_replicas{namespace="{{ $ns }}", deployment="{{ $name }}"} > 0
+          labels: {severity: critical, namespace: {{ $ns }}, service: {{ $name }}}
+          annotations:
+            summary: {{ printf "%s 가용 Pod 0개 — 최근 %s 안에 서비스가 완전히 멈춘 적 있음(사용자 요청 503 가능)" $name ($a.downWindow | default "2m") | quote }}
+            description: "kubectl get events -n 네임스페이스 로 Pod 삭제·노드 교체(Karpenter)·배포·OOM 중 무엇이었는지 확인. 이미 복구됐으면 대시보드에서 다운 시간과 5xx를 확인하고, 반복되면 minReplicas 2 + PDB 검토"
+            {{- with $logsUrl }}
+            logs_url: {{ . | quote }}
+            {{- end }}
+            {{- with $dashUrl }}
+            dashboard_url: {{ . | quote }}
+            {{- end }}
+        {{- end }}
         - alert: KeepgoReplicasUnavailable
           expr: kube_deployment_status_replicas_unavailable{namespace="{{ $ns }}", deployment="{{ $name }}"} > 0
           for: {{ $a.unavailableFor }}

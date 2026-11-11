@@ -645,6 +645,9 @@
         "unavailableFor": {
           "type": "string"
         },
+        "downWindow": {
+          "type": "string"
+        },
         "http": {
           "type": "object",
           "additionalProperties": false,

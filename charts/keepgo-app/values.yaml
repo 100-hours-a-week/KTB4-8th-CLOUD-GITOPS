@@ -371,6 +371,10 @@ alerts:
   restartsIn15m: 3
   # Ready가 아닌 Pod가 이 시간 넘게 있으면(배포 멈춤 포함)
   unavailableFor: 10m
+  # 가용 Pod가 0개였던 적이 최근 이 시간 안에 있으면 바로 알림(서비스 다운). minReplicas 0인 서비스(worker)는 만들지 않는다.
+  # 11-11 장애 실험: Pod 1개 서비스가 kill되면 7~27초 완전 다운인데 기존 알림(for 10m)은 하나도 안 울렸다.
+  # kube-state-metrics 수집이 30초 간격이라 30초보다 짧은 다운은 놓칠 수 있다(E2 27초는 잡힘, E1 7초는 못 잡음).
+  downWindow: 2m
   http:
     # Spring(Micrometer) 기준. 지표가 없는 서비스(ai-api 등)는 끈다.
     enabled: true
