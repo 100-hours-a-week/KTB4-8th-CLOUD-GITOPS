@@ -148,9 +148,47 @@ alertmanager:
       requests: { cpu: 10m, memory: 64Mi }
       limits: { memory: 128Mi }
 
-# Grafana: System 노드. 대시보드는 ConfigMap(sidecar)에서 읽어서 PVC 없음. 접근은 port-forward
+# Grafana: System 노드. 대시보드는 ConfigMap(sidecar)에서 읽어서 PVC 없음.
+# 접근(11-11): https://dev3.keepgo.kr/grafana (기존 ALB Gateway 경로, 아래 extraManifests의 HTTPRoute)
+#   로그인: GitHub(100-hours-a-week 조직의 ktb4-8th 팀만, 기본 Viewer) + 로컬 admin(keepgo-grafana-admin)
 grafana:
   priorityClassName: system-cluster-critical
+  grafana.ini:
+    server:
+      domain: dev3.keepgo.kr
+      root_url: https://dev3.keepgo.kr/grafana
+      # /grafana 하위 경로에서 직접 응답(ALB가 경로를 바꾸지 않고 그대로 넘긴다)
+      serve_from_sub_path: true
+    security:
+      cookie_secure: true
+    users:
+      # GitHub로 처음 들어온 사람의 권한. 수정은 로컬 admin이 한다
+      auto_assign_org_role: Viewer
+    auth.github:
+      enabled: true
+      allow_sign_up: true
+      scopes: user:email,read:org
+      auth_url: https://github.com/login/oauth/authorize
+      token_url: https://github.com/login/oauth/access_token
+      api_url: https://api.github.com/user
+      allowed_organizations: 100-hours-a-week
+      # 100-hours-a-week는 부트캠프 전체 조직이라 KeepGo 팀(ktb4-8th, 8명)만 허용
+      team_ids: "19119218"
+  # GitHub OAuth App 값. Secret keepgo-grafana-github(키 client-id, client-secret)은 사람이 만든다.
+  # optional이라 Secret이 없어도 Grafana는 뜨고, 그동안 GitHub 로그인 버튼만 동작하지 않는다
+  envValueFrom:
+    GF_AUTH_GITHUB_CLIENT_ID:
+      secretKeyRef: { name: keepgo-grafana-github, key: client-id, optional: true }
+    GF_AUTH_GITHUB_CLIENT_SECRET:
+      secretKeyRef: { name: keepgo-grafana-github, key: client-secret, optional: true }
+  # 하위 경로(/grafana)로 옮겼으니 상태 확인 경로도 같이 바꾼다
+  readinessProbe:
+    httpGet: { path: /grafana/api/health, port: grafana }
+  livenessProbe:
+    httpGet: { path: /grafana/api/health, port: grafana }
+    initialDelaySeconds: 60
+    timeoutSeconds: 30
+    failureThreshold: 10
   nodeSelector: { workload: system }
   tolerations:
     - { key: workload, operator: Equal, value: system, effect: NoSchedule }
@@ -176,6 +214,10 @@ grafana:
       folderAnnotation: grafana_folder   # B의 대시보드 ConfigMap 주석 (KeepGo V3 폴더)
       provider:
         foldersFromFilesStructure: true
+      # 하위 경로(/grafana)로 옮겨서 sidecar가 부르는 Grafana API 주소도 바꾼다
+      reloadURL: http://localhost:3000/grafana/api/admin/provisioning/dashboards/reload
+    datasources:
+      reloadURL: http://localhost:3000/grafana/api/admin/provisioning/datasources/reload
   # AWS 자원(ALB·RDS·SQS 지표, CloudWatch Logs Insights) 조회용. 자격증명은 키가 아니라 EKS Pod Identity:
   #   monitoring/kube-prometheus-stack-grafana → IAM keepgo-dev3-grafana-role
   #   (CloudWatchReadOnlyAccess + AWSXrayReadOnlyAccess, 11-10 콘솔 대신 CLI로 생성)
@@ -267,3 +309,40 @@ extraManifests:
             - action: drop
               sourceLabels: [__name__]
               regex: karpenter_cloudprovider_instance_type_offering_(available|price_estimate)
+  # Grafana 외부 공개(11-11): https://dev3.keepgo.kr/grafana → 기존 ALB Gateway(gateway-system/keepgo-dev3-gateway)
+  # Gateway의 allowedRoutes에 monitoring Namespace를 추가해야 연결된다(Gateway는 GitOps 밖, kubectl로 관리)
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: grafana
+      namespace: monitoring
+    spec:
+      parentRefs:
+        - { group: gateway.networking.k8s.io, kind: Gateway, name: keepgo-dev3-gateway, namespace: gateway-system, sectionName: https }
+      hostnames: [dev3.keepgo.kr]
+      rules:
+        - matches:
+            - path: { type: PathPrefix, value: /grafana }
+          backendRefs:
+            - { group: "", kind: Service, name: kube-prometheus-stack-grafana, port: 80 }
+  # ALB 대상 그룹: 파드 IP로 직접(앱과 같은 방식). 상태 확인은 하위 경로의 /api/health
+  - apiVersion: gateway.k8s.aws/v1
+    kind: TargetGroupConfiguration
+    metadata:
+      name: kube-prometheus-stack-grafana
+      namespace: monitoring
+    spec:
+      targetReference: { group: "", kind: Service, name: kube-prometheus-stack-grafana }
+      defaultConfiguration:
+        targetType: ip
+        healthCheckConfig:
+          healthCheckPath: /grafana/api/health
+          healthCheckPort: "3000"
+          healthCheckProtocol: HTTP
+          healthCheckInterval: 15
+          healthCheckTimeout: 5
+          healthyThresholdCount: 2
+          unhealthyThresholdCount: 2
+          matcher: { httpCode: "200" }
+        targetGroupAttributes:
+          - { key: deregistration_delay.timeout_seconds, value: "30" }

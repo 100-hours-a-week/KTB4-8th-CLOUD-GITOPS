@@ -381,7 +381,7 @@ alerts:
     p95Seconds: 1
   # 알림 메시지에 붙일 Grafana 링크(트레이스·로그·대시보드). 비우면 링크 없이 보낸다. 환경별 values에 둔다.
   links:
-    # 예) http://localhost:3000 (port-forward 3000:80 기준)
+    # 예) https://dev3.keepgo.kr/grafana
     grafanaUrl: ""
     # CloudWatch Logs 그룹 앞부분. 그룹은 <prefix>/<namespace> (Fluent Bit). 예) /aws/eks/keepgo-dev3
     logGroupPrefix: ""
