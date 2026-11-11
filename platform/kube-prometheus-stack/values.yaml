@@ -150,7 +150,7 @@ alertmanager:
 
 # Grafana: System 노드. 대시보드는 ConfigMap(sidecar)에서 읽어서 PVC 없음.
 # 접근(11-11): https://dev3.keepgo.kr/grafana (기존 ALB Gateway 경로, 아래 extraManifests의 HTTPRoute)
-#   로그인: GitHub(ktb4-8th 팀원 아이디 명단만, Viewer) + 로컬 admin(keepgo-grafana-admin)
+#   로그인: GitHub(8조 팀원 아이디 명단만, Viewer, 조직 권한 요청 없음) + 로컬 admin(keepgo-grafana-admin)
 grafana:
   priorityClassName: system-cluster-critical
   grafana.ini:
@@ -164,26 +164,33 @@ grafana:
     users:
       # GitHub로 처음 들어온 사람의 권한. 수정은 로컬 admin이 한다
       auto_assign_org_role: Viewer
-    auth.github:
+    # GitHub 로그인(11-11 최종). 조직·팀 권한 없이 "GitHub 아이디"만 받아서 명단으로 거른다.
+    # auth.github(전용 연동)은 로그인마다 /user/teams를 불러 read:org가 꼭 필요하고,
+    # 그러면 인증 화면에 조직 목록(Grant/Request)이 뜬다. 100-hours-a-week는 외부 앱을 제한해서 팀 확인도 안 됐다.
+    # 그래서 범용 OAuth(generic_oauth)로 GitHub에 붙인다: 팀 조회를 안 하고, 권한은 user:email만.
+    # GitHub OAuth App의 Authorization callback URL은 https://dev3.keepgo.kr/grafana/login 이어야 한다(하위 경로 허용)
+    auth.generic_oauth:
       enabled: true
+      name: GitHub
+      icon: github
       allow_sign_up: true
-      # read:org는 꼭 필요하다. Grafana가 로그인마다 /user/teams를 부르고, 권한이 없으면 404로 로그인 실패(11-11 확인).
-      # 단, 팀으로 거르지는 않는다. 100-hours-a-week 조직이 외부 앱을 제한해서 운영진 승인 전에는
-      # 팀 정보가 비어 오고, team_ids 방식은 8조 팀원도 거절됐다(11-11). 인증 화면의 조직 Grant/Request는 누를 필요 없음
-      scopes: user:email,read:org
+      scopes: user:email
       auth_url: https://github.com/login/oauth/authorize
       token_url: https://github.com/login/oauth/access_token
+      # 이메일이 비공개면 Grafana가 api_url + /emails(= /user/emails)에서 가져온다
       api_url: https://api.github.com/user
-      # 허용 명단: 100-hours-a-week/ktb4-8th 팀 멤버(11-11 조회, 8명). 팀원이 바뀌면 여기를 고친다
+      login_attribute_path: login
+      name_attribute_path: name
+      # 허용 명단: KeepGo 8조 팀원 GitHub 아이디(ktb4-8th 팀에서 운영진 계정 제외, 11-11). 팀원이 바뀌면 여기를 고친다
       # 명단에 있으면 Viewer, 없으면 역할이 비고 strict라서 로그인 거절
-      role_attribute_path: "contains(['iasandcb', 'startupcodekr', 'kimSR0916', 'gaamjaaa', 'LifeSatin', 'stellarover', 'hochan00', 'zikpoka5-commits'], login) && 'Viewer'"
+      role_attribute_path: "contains(['kimSR0916', 'gaamjaaa', 'LifeSatin', 'stellarover', 'hochan00', 'zikpoka5-commits'], login) && 'Viewer'"
       role_attribute_strict: true
   # GitHub OAuth App 값. Secret keepgo-grafana-github(키 client-id, client-secret)은 사람이 만든다.
   # optional이라 Secret이 없어도 Grafana는 뜨고, 그동안 GitHub 로그인 버튼만 동작하지 않는다
   envValueFrom:
-    GF_AUTH_GITHUB_CLIENT_ID:
+    GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
       secretKeyRef: { name: keepgo-grafana-github, key: client-id, optional: true }
-    GF_AUTH_GITHUB_CLIENT_SECRET:
+    GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
       secretKeyRef: { name: keepgo-grafana-github, key: client-secret, optional: true }
   # 하위 경로(/grafana)로 옮겼으니 상태 확인 경로도 같이 바꾼다
   readinessProbe:
