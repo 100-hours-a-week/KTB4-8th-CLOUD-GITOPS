@@ -53,8 +53,8 @@ metrics:
   podMonitorLabels:
     release: kube-prometheus-stack
 
-# 알림 메시지의 Grafana 링크(트레이스·로그·대시보드). Grafana는 port-forward 3000:80으로 연다
+# 알림 메시지의 Grafana 링크(트레이스·로그·대시보드). Grafana는 https://dev3.keepgo.kr/grafana (GitHub 로그인, ktb4-8th 팀)
 alerts:
   links:
-    grafanaUrl: http://localhost:3000
+    grafanaUrl: https://dev3.keepgo.kr/grafana
     logGroupPrefix: /aws/eks/keepgo-dev3
