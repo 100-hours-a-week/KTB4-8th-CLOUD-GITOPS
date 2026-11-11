@@ -1,0 +1,105 @@
+# 플랫폼(인프라) 알림. 소유 A. 앱 알림(재시작·OOM·5xx·p95)은 keepgo-app 차트가 서비스마다 만든다(B).
+# 이름이 Keepgo로 시작하므로 alertmanager-config.yaml(keepgo-services) 경로로 Discord에 간다. severity·component 라벨로 구분
+# 각 알림의 description에 "먼저 볼 것"을 적었다(대응 절차의 첫 단계)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: keepgo-platform
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+    app.kubernetes.io/part-of: keepgo
+spec:
+  groups:
+    - name: keepgo-platform.nodes
+      rules:
+        - alert: KeepgoPlatformNodeNotReady
+          expr: kube_node_status_condition{condition="Ready", status="true"} == 0
+          for: 5m
+          labels: { severity: critical, component: node }
+          annotations:
+            summary: "노드 {{ $labels.node }}가 5분 넘게 NotReady"
+            description: "먼저 볼 것: kubectl describe node {{ $labels.node }} (Conditions·Events). Karpenter 노드면 NodeClaim 상태, System 노드면 MNG 상태"
+        - alert: KeepgoPlatformNodeMemoryPressure
+          expr: kube_node_status_condition{condition="MemoryPressure", status="true"} == 1
+          for: 5m
+          labels: { severity: warning, component: node }
+          annotations:
+            summary: "노드 {{ $labels.node }} 메모리 압박(파드 축출 가능)"
+            description: "먼저 볼 것: kubectl top pods -A --sort-by=memory 로 그 노드의 큰 파드. System 노드면 requests 합계도 확인"
+
+    - name: keepgo-platform.workloads
+      rules:
+        - alert: KeepgoPlatformPodPending
+          expr: max by (namespace, pod) (kube_pod_status_phase{phase="Pending"}) == 1
+          for: 10m
+          labels: { severity: warning, component: scheduling }
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }}가 10분 넘게 Pending"
+            description: "먼저 볼 것: kubectl describe pod (Events). 노드 부족이면 Karpenter 로그·NodePool limits, quota 초과면 ResourceQuota, PVC면 AZ"
+        # 플랫폼 컴포넌트만(앱은 keepgo-app 차트 알림이 맡는다). 11-10 Argo CD 컨트롤러 CrashLoop 같은 경우
+        - alert: KeepgoPlatformComponentCrashLooping
+          expr: max by (namespace, pod, container) (kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", namespace=~"argocd|monitoring|logging|tracing|kube-system|keda|karpenter|external-secrets|chaos-mesh|data"}) == 1
+          for: 5m
+          labels: { severity: critical, component: platform }
+          annotations:
+            summary: "플랫폼 컴포넌트 {{ $labels.namespace }}/{{ $labels.pod }}({{ $labels.container }}) CrashLoopBackOff"
+            description: "먼저 볼 것: kubectl logs --previous, kubectl describe pod의 Last State(OOMKilled면 메모리 한도). Argo CD 컨트롤러면 동기화가 전부 멈춘다"
+        - alert: KeepgoPlatformComponentOOMKilled
+          expr: |
+            max by (namespace, pod, container) (kube_pod_container_status_last_terminated_reason{reason="OOMKilled", namespace=~"argocd|monitoring|logging|tracing|kube-system|keda|karpenter|external-secrets|chaos-mesh|data"}) == 1
+              and on (namespace, pod, container)
+            increase(kube_pod_container_status_restarts_total[15m]) > 0
+          labels: { severity: warning, component: platform }
+          annotations:
+            summary: "플랫폼 컴포넌트 {{ $labels.namespace }}/{{ $labels.pod }}({{ $labels.container }})가 메모리 부족으로 재시작"
+            description: "먼저 볼 것: 그 컨테이너의 메모리 사용 추이와 limits. 반복되면 한도 상향(예: 11-10 Argo CD 768Mi→1536Mi)"
+
+    - name: keepgo-platform.storage
+      rules:
+        - alert: KeepgoPlatformPVCFillingUp
+          expr: max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) > 0.8
+          for: 10m
+          labels: { severity: warning, component: storage }
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} 사용률 {{ $value | humanizePercentage }}"
+            description: "먼저 볼 것: Prometheus면 retentionSize(15GB)와 PVC(20Gi), Redis면 AOF·RDB 크기. StorageClass가 allowVolumeExpansion이라 PVC 용량을 늘릴 수 있다"
+
+    - name: keepgo-platform.pipeline
+      rules:
+        - alert: KeepgoPlatformTargetDown
+          expr: max by (namespace, job) (up) == 0
+          for: 5m
+          labels: { severity: warning, component: monitoring }
+          annotations:
+            summary: "수집 대상 {{ $labels.namespace }}/{{ $labels.job }}이 5분 넘게 응답 없음"
+            description: "먼저 볼 것: Prometheus Targets 화면의 lastError, 대상 파드 상태, NetworkPolicy가 monitoring Namespace를 막는지"
+        # 큐가 없어 계속 실패하는 youtube-analysis-worker는 뺀다(트리거를 정하면 이 제외를 지운다)
+        # KEDA 2.21 이름: keda_scaler_detail_errors_total(옛 keda_scaler_errors_total). namespace 라벨은 KEDA 파드 것이라 scaledObject로 묶는다
+        - alert: KeepgoPlatformKedaScalerErrors
+          expr: sum by (scaledObject) (rate(keda_scaler_detail_errors_total{scaledObject!="youtube-analysis-worker"}[5m])) > 0
+          for: 10m
+          labels: { severity: warning, component: autoscaling }
+          annotations:
+            summary: "KEDA {{ $labels.scaledObject }} 트리거 조회 실패"
+            description: "먼저 볼 것: kubectl describe scaledobject (Events), Prometheus 쿼리를 직접 실행. 실패 중에는 CPU 트리거로만 확장된다"
+        - alert: KeepgoPlatformLogShippingFailing
+          expr: sum by (pod) (rate(fluentbit_output_retries_failed_total[5m])) > 0
+          for: 10m
+          labels: { severity: warning, component: logging }
+          annotations:
+            summary: "Fluent Bit {{ $labels.pod }}가 CloudWatch Logs로 보내지 못하고 버리는 중"
+            description: "먼저 볼 것: kubectl logs -n logging {{ $labels.pod }} 의 [error], Pod Identity 연결(logging/fluent-bit), IAM 권한"
+        - alert: KeepgoPlatformTraceExportFailing
+          expr: sum(rate(otelcol_exporter_send_failed_spans_total[5m])) > 0
+          for: 10m
+          labels: { severity: warning, component: tracing }
+          annotations:
+            summary: "OTel Collector가 X-Ray로 Span을 보내지 못하는 중"
+            description: "먼저 볼 것: kubectl logs -n tracing deploy/otel-collector, Pod Identity 연결(tracing/otel-collector), X-Ray 쓰기 권한"
+        - alert: KeepgoPlatformThanosUploadFailing
+          expr: sum(increase(thanos_shipper_upload_failures_total[30m])) > 0
+          labels: { severity: warning, component: monitoring }
+          annotations:
+            summary: "Thanos sidecar가 S3에 블록을 올리지 못함"
+            description: "먼저 볼 것: Prometheus 파드의 thanos-sidecar 로그, Pod Identity 연결(monitoring/kube-prometheus-stack-prometheus), 버킷 권한. 실패한 블록은 다음 업로드 때 다시 시도한다"
