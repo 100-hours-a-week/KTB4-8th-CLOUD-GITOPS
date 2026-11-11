@@ -87,6 +87,12 @@ prometheusOperator:
 #   Thanos sidecar가 2시간마다 TSDB 블록을 S3(keepgo-dev3-thanos-602601433533, 90일 뒤 삭제)에 올린다
 #   → 클러스터를 지웠다 다시 만들어도 과거 지표가 S3에 남는다. 조회용 Store·Querier·Compactor는 필요할 때 추가
 prometheus:
+  # Thanos sidecar 자체 지표(thanos_shipper_uploads_total·upload_failures_total) 수집.
+  # 10단계 알림 KeepgoPlatformThanosUploadFailing이 쓴다. ServiceMonitor는 Service가 있어야 만들어진다
+  thanosService:
+    enabled: true
+  thanosServiceMonitor:
+    enabled: true
   prometheusSpec:
     replicas: 1
     scrapeInterval: 30s        # B의 PodMonitor interval과 같게
