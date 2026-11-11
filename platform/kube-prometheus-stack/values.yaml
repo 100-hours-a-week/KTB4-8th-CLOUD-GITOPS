@@ -168,7 +168,7 @@ grafana:
     # auth.github(전용 연동)은 로그인마다 /user/teams를 불러 read:org가 꼭 필요하고,
     # 그러면 인증 화면에 조직 목록(Grant/Request)이 뜬다. 100-hours-a-week는 외부 앱을 제한해서 팀 확인도 안 됐다.
     # 그래서 범용 OAuth(generic_oauth)로 GitHub에 붙인다: 팀 조회를 안 하고, 권한은 user:email만.
-    # GitHub OAuth App의 Authorization callback URL은 https://dev3.keepgo.kr/grafana/login 이어야 한다(하위 경로 허용)
+    # GitHub OAuth App의 Redirect URI는 https://dev3.keepgo.kr/grafana/login/generic_oauth (글자 그대로 일치해야 함, wildcard 끔)
     auth.generic_oauth:
       enabled: true
       name: GitHub
