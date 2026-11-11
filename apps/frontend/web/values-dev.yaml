@@ -1,7 +1,7 @@
 image:
   # auto-release-dev가 KTB4-8th-FE develop 이미지로 바꾼다.
   # NEXT_PUBLIC_* 값은 이미지 빌드 때 들어가므로 dev·prod 이미지가 다를 수 있다(문서 참고).
-  tag: "b21465f0e55054691bff9187e6c8e75d9816afa0"
+  tag: "4a399d45369bd078acb705115e074214e03172d2"
 
 autoscaling:
   minReplicas: 1
