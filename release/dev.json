@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "environment": "dev",
+  "account_id": "602601433533",
+  "region": "ap-northeast-2",
+  "groups": {
+    "backend": {
+      "repository": "100-hours-a-week/KTB4-8th-BE",
+      "branch": "develop",
+      "workflow": "ci.yml",
+      "job": "Dev - Build and Push Image",
+      "ecr_repository": "keepgo-backend",
+      "values": ["apps/_shared/spring-dev.yaml"]
+    },
+    "ai": {
+      "repository": "100-hours-a-week/KTB4-8th-AI",
+      "branch": "develop",
+      "workflow": "ci.yml",
+      "job": "Dev - Build and Push Image",
+      "ecr_repository": "keepgo-ai",
+      "values": ["apps/ai/ai-api/values-dev.yaml"]
+    },
+    "frontend": {
+      "repository": "100-hours-a-week/KTB4-8th-FE",
+      "branch": "develop",
+      "workflow": "frontend-ci.yml",
+      "job": "Dev - Build and Push Image",
+      "ecr_repository": "keepgo-web",
+      "values": ["apps/frontend/web/values-dev.yaml"]
+    }
+  }
+}

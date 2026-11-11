@@ -1,0 +1,45 @@
+name: auto-release-dev
+
+# 앱 저장소 develop의 검증된 새 이미지를 찾아 values-dev 태그를 바꾸는 PR을 만들고 바로 병합한다.
+# 로직은 scripts/release.py(V2 Cloud auto-release 이관), 대상은 release/dev.json. 반영은 Argo CD가 한다.
+# 이 저장소에서는 on.schedule이 돌지 않아 EventBridge가 ECR push 이벤트와 10분 주기로
+# workflow_dispatch API를 부른다(Cloud 레포 infrastructure/v3-gitops-dispatch.yaml).
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '조회만 하고 PR·병합은 하지 않는다 (AUTO_DEPLOY_ENABLED가 꺼져 있어도 실행)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: auto-release-dev
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # 자동 반영 전체 스위치. 'true'가 아니면 조회하지 않는다. dry_run은 켜기 전 확인용이라 스위치와 무관하다.
+    if: github.ref == 'refs/heads/main' && (vars.AUTO_DEPLOY_ENABLED == 'true' || inputs.dry_run)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      # ECR 조회 전용 역할(Cloud 레포 infrastructure/v3-gitops-release-role.json)
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.RELEASE_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: 새 이미지 찾기·values-dev 병합
+        run: python3 scripts/release.py ${{ inputs.dry_run && ' ' || '--execute' }}
