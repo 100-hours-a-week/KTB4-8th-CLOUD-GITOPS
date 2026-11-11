@@ -48,5 +48,5 @@ spec:
             {{ end }}{{ if or .CommonAnnotations.trace_url .CommonAnnotations.logs_url .CommonAnnotations.dashboard_url }}
             {{ with .CommonAnnotations.trace_url }}🧵 [트레이스 (X-Ray, 오류·느린 요청)]({{ . }})
             {{ end }}{{ with .CommonAnnotations.logs_url }}📜 [로그 (ERROR·예외, trace_id 포함)]({{ . }})
-            {{ end }}{{ with .CommonAnnotations.dashboard_url }}📊 [서비스 대시보드]({{ . }})
+            {{ end }}{{ with .CommonAnnotations.dashboard_url }}📊 [Grafana 대시보드]({{ . }})
             {{ end }}_링크는 Grafana port-forward(3000:80)를 켠 상태에서 열립니다_{{ end }}{{ end }}
