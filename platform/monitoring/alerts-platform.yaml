@@ -104,8 +104,9 @@ spec:
             description: "먼저 볼 것: kubectl -n argocd get application {{ $labels.name }} -o jsonpath='{.status.conditions}' (ComparisonError·SyncError), .status.operationState.message. 재시도 5번이 끝났으면 다음 커밋 전까지 다시 시도하지 않는다"
             dashboard_url: "https://dev3.keepgo.kr/grafana/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22prometheus%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22prometheus%22%2C%22uid%22%3A%22prometheus%22%7D%2C%22expr%22%3A%22argocd_app_info%7Bsync_status%21%3D%5C%22Synced%5C%22%7D%20or%20argocd_app_info%7Bhealth_status%21%3D%5C%22Healthy%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D%7D"
         # Notifications의 Degraded 알림이 webhook 문제로 안 가도 Alertmanager 경로로 한 번 더 받는다
+        # 큐가 없어 ScaledObject가 TriggerError(Degraded)인 youtube-analysis-worker는 뺀다(KedaScalerErrors와 같이, 트리거를 정하면 지운다)
         - alert: KeepgoPlatformArgoCDAppUnhealthy
-          expr: max by (name, health_status) (argocd_app_info{health_status=~"Degraded|Missing"}) == 1
+          expr: max by (name, health_status) (argocd_app_info{health_status=~"Degraded|Missing", name!="youtube-analysis-worker"}) == 1
           for: 15m
           labels: { severity: warning, component: gitops }
           annotations:
