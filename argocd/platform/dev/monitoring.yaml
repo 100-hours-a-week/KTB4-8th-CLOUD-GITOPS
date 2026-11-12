@@ -17,6 +17,8 @@ spec:
     repoURL: https://github.com/100-hours-a-week/KTB4-8th-CLOUD-GITOPS.git
     targetRevision: main
     path: platform/monitoring
+    directory:
+      recurse: true
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring

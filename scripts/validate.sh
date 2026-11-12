@@ -59,7 +59,11 @@ for env in $ENVS; do
   helm template keepgo-tenancy platform/tenancy -f "platform/tenancy/values-$env.yaml" > "$OUT/$env/platform-tenancy.yaml"
   join platform/rbac/*.yaml > "$OUT/$env/platform-rbac.yaml"
   join platform/priority-classes/*.yaml > "$OUT/$env/platform-priority-classes.yaml"
-  join platform/monitoring/*.yaml > "$OUT/$env/platform-monitoring.yaml"
+  monitoring_files=(platform/monitoring/*.yaml)
+  if [ "$env" = dev ]; then
+    monitoring_files+=(platform/monitoring/dev3/*.yaml)
+  fi
+  join "${monitoring_files[@]}" > "$OUT/$env/platform-monitoring.yaml"
   for f in argocd/projects/*.yaml argocd/platform/"$env"/*.yaml argocd/applicationsets/apps-"$env".yaml argocd/bootstrap/project.yaml argocd/bootstrap/root-"$env".yaml; do
     printf -- '---\n'; cat "$f"
   done > "$OUT/$env/argocd.yaml"
