@@ -11,9 +11,23 @@ resources:
 autoscaling:
   type: hpa
 
+# 좋아요 영상 동기화 v3는 SSE다(BE InterestExtractionControllerV3, YoutubeSyncProperties).
+#   스트림 상한 30분(emitterTimeoutMs 1800000), 15초마다 keep-alive 주석 → ALB idle timeout(200초)에 안 걸린다.
+#   진행 상태는 DB 행 + heartbeat(60초)로 관리해서, Pod가 바뀌면 그 동기화는 heartbeat 만료로 실패 처리되고 다시 요청하면 된다.
+# 종료(chat·recommend와 같은 SSE 기준): preStop 10초 동안 대상에서 빠지고, 진행 중 단계를 마무리할 시간을 준다.
+terminationGracePeriodSeconds: 60
+env:
+  SPRING_LIFECYCLE_TIMEOUTPERSHUTDOWNPHASE: 45s
+
 httpRoute:
   enabled: true
   pathPrefixes:
     - /api/v2/member/youtube-sync
+    # v3 동기화(SSE). FE는 SYNC_V3=on(develop·main 빌드 모두)이라 이 경로를 부른다.
+    # 없으면 /api 전체를 맡은 member-api가 받는데, member-api는 ai-api NetworkPolicy 허용 대상이 아니라 영상 분석이 막힌다(11-12)
+    - /api/v3/member/youtube-sync
     - /api/v2/member/external-connections
     - /api/v1/user/youtube-analyze
+  targetGroup:
+    # 빠질 때 기존 연결을 정리할 시간. 종료 상한(60초)보다 짧게.
+    deregistrationDelaySeconds: 50
