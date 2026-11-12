@@ -323,6 +323,30 @@ extraManifests:
             - action: drop
               sourceLabels: [__name__]
               regex: karpenter_cloudprovider_instance_type_offering_(available|price_estimate)
+  # Argo CD(Helm으로 직접 설치, GitOps 밖) 지표. 차트의 metrics 옵션을 켜려면 helm upgrade가 필요해서 여기서 Pod를 직접 고른다.
+  # 포트 metrics는 차트가 항상 연다(controller 8082·repo-server 8084). 차트 NetworkPolicy가 metrics 포트를 모든 Namespace에 허용한다.
+  # 쓰는 지표: up, argocd_app_info(앱별 sync·health), argocd_app_reconcile_count — 알림 keepgo-platform.gitops
+  - apiVersion: monitoring.coreos.com/v1
+    kind: PodMonitor
+    metadata:
+      name: argocd
+      namespace: argocd
+      labels:
+        release: kube-prometheus-stack
+    spec:
+      selector:
+        matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values: [argocd-application-controller, argocd-repo-server]
+      podMetricsEndpoints:
+        - port: metrics
+          interval: 30s
+          # 히스토그램 구간(_bucket)은 앱 수 × 구간 수로 늘고 알림·대시보드에서 안 쓴다(_count·_sum은 남김)
+          metricRelabelings:
+            - action: drop
+              sourceLabels: [__name__]
+              regex: (argocd|grpc|workqueue)_.*_bucket
   # Grafana 외부 공개(11-11): https://dev3.keepgo.kr/grafana → 기존 ALB Gateway(gateway-system/keepgo-dev3-gateway)
   # Gateway의 allowedRoutes에 monitoring Namespace를 추가해야 연결된다(Gateway는 GitOps 밖, kubectl로 관리)
   - apiVersion: gateway.networking.k8s.io/v1
