@@ -1,4 +1,4 @@
-# dev: 최소 1개(5-4 5.1)
+# 핵심 서비스: 최소 2개(AZ a·c 하나씩). 11-12 카오스 실험 결과로 1 → 2. 최대는 quota·DB 연결 예산 안에서 3
 autoscaling:
-  minReplicas: 1
-  maxReplicas: 2
+  minReplicas: 2
+  maxReplicas: 3

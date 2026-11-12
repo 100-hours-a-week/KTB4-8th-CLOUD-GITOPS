@@ -33,6 +33,10 @@ env:
   DB_DIALECT: MySQL
   # Pod당 DB 커넥션 수. 기본 10을 쓰지 않는다(5-3 3.4). 예산 계산은 gitops/scripts/check-budget.py
   SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE: "3"
+  # 연결을 얻을 때까지 기다리는 최대 시간(ms). 기본 30000.
+  # 11-12 S5 실험: DB 0.3초 지연에 요청마다 30초씩 줄을 서서 대기 199개, p95 58초까지 커졌다.
+  # 3초 안에 못 얻으면 바로 실패시켜 줄이 끝없이 길어지지 않게 하고, DB가 회복되면 곧바로 정상으로 돌아오게 한다.
+  SPRING_DATASOURCE_HIKARI_CONNECTIONTIMEOUT: "3000"
   # V2와 같은 스키마 관리 방식. backend에 Flyway 스크립트가 생기면 migration Job으로 옮기고 이 값을 바꾼다(5-4 8.3).
   SPRING_JPA_HIBERNATE_DDL_AUTO: update
   SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"

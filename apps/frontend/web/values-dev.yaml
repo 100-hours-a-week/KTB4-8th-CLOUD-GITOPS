@@ -3,9 +3,10 @@ image:
   # NEXT_PUBLIC_* 값은 이미지 빌드 때 들어가므로 dev·prod 이미지가 다를 수 있다(문서 참고).
   tag: "f06a6a4d5230bc78416344f1adbc944a7fcc8024"
 
+# 핵심 서비스: 최소 2개(AZ a·c 하나씩). 11-12 카오스 실험 결과로 1 → 2. 최대는 quota·DB 연결 예산 안에서 3
 autoscaling:
-  minReplicas: 1
-  maxReplicas: 2
+  minReplicas: 2
+  maxReplicas: 3
 
 httpRoute:
   parentRefs:
