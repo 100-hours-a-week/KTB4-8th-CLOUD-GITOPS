@@ -72,6 +72,46 @@ spec:
             description: "먼저 볼 것: Prometheus면 retentionSize(15GB)와 PVC(20Gi), Redis면 AOF·RDB 크기. StorageClass가 allowVolumeExpansion이라 PVC 용량을 늘릴 수 있다"
             dashboard_url: "https://dev3.keepgo.kr/grafana/d/919b92a8e8041bd567af9edab12c840c?orgId=1&var-namespace={{ $labels.namespace }}&from=now-1h&to=now"
 
+    # Argo CD 자체 감시(11-12). 지표는 kube-prometheus-stack values의 PodMonitor argocd가 모은다(controller 8082·repo-server 8084)
+    # Argo CD Notifications(Discord)는 컨트롤러가 살아 있어야 보내지므로, 컨트롤러가 멈춘 경우는 여기서만 잡힌다
+    - name: keepgo-platform.gitops
+      rules:
+        # 11-10 OOM처럼 컨트롤러가 없거나 지표를 못 내는 경우. 이때는 Git에 머지해도 아무것도 반영되지 않는다
+        - alert: KeepgoPlatformArgoCDControllerDown
+          expr: absent(up{namespace="argocd", pod=~"argocd-application-controller-.*"} == 1)
+          for: 5m
+          labels: { severity: critical, component: gitops }
+          annotations:
+            summary: "Argo CD 컨트롤러가 5분 넘게 응답 없음 — Git 변경이 클러스터에 반영되지 않는 중"
+            description: "먼저 볼 것: kubectl -n argocd get pod argocd-application-controller-0, describe의 Last State(OOMKilled면 argocd/bootstrap/values.yaml 메모리 → helm upgrade → StatefulSet이라 옛 Pod는 직접 삭제)"
+            dashboard_url: "https://dev3.keepgo.kr/grafana/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22prometheus%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22prometheus%22%2C%22uid%22%3A%22prometheus%22%7D%2C%22expr%22%3A%22up%7Bnamespace%3D%5C%22argocd%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D%7D"
+        # 컨트롤러는 떠 있는데 일을 안 하는 경우(멈춤·교착). 평소에는 앱마다 2분(reconciliation)에 한 번 이상 비교한다
+        - alert: KeepgoPlatformArgoCDReconcileStalled
+          expr: sum(increase(argocd_app_reconcile_count[15m])) == 0
+          for: 5m
+          labels: { severity: critical, component: gitops }
+          annotations:
+            summary: "Argo CD 컨트롤러가 20분 동안 어떤 앱도 비교하지 않음 — 살아 있지만 멈춘 상태"
+            description: "먼저 볼 것: kubectl -n argocd logs argocd-application-controller-0 --tail=100 (context deadline·OOM 직전 로그), workqueue 지표(argocd_app_*). 풀리지 않으면 Pod 삭제로 재시작"
+            dashboard_url: "https://dev3.keepgo.kr/grafana/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22prometheus%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22prometheus%22%2C%22uid%22%3A%22prometheus%22%7D%2C%22expr%22%3A%22sum%20by%20%28name%29%20%28increase%28argocd_app_reconcile_count%5B15m%5D%29%29%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D%7D"
+        # 자동 동기화(selfHeal)인데 30분 넘게 Synced가 아니면 반영이 막힌 것. Unknown은 Git·차트 읽기 실패(ComparisonError)
+        - alert: KeepgoPlatformArgoCDAppOutOfSync
+          expr: max by (name, sync_status) (argocd_app_info{sync_status!="Synced"}) == 1
+          for: 30m
+          labels: { severity: warning, component: gitops }
+          annotations:
+            summary: "Argo CD 앱 {{ $labels.name }}이 30분 넘게 {{ $labels.sync_status }}"
+            description: "먼저 볼 것: kubectl -n argocd get application {{ $labels.name }} -o jsonpath='{.status.conditions}' (ComparisonError·SyncError), .status.operationState.message. 재시도 5번이 끝났으면 다음 커밋 전까지 다시 시도하지 않는다"
+            dashboard_url: "https://dev3.keepgo.kr/grafana/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22prometheus%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22prometheus%22%2C%22uid%22%3A%22prometheus%22%7D%2C%22expr%22%3A%22argocd_app_info%7Bsync_status%21%3D%5C%22Synced%5C%22%7D%20or%20argocd_app_info%7Bhealth_status%21%3D%5C%22Healthy%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D%7D"
+        # Notifications의 Degraded 알림이 webhook 문제로 안 가도 Alertmanager 경로로 한 번 더 받는다
+        - alert: KeepgoPlatformArgoCDAppUnhealthy
+          expr: max by (name, health_status) (argocd_app_info{health_status=~"Degraded|Missing"}) == 1
+          for: 15m
+          labels: { severity: warning, component: gitops }
+          annotations:
+            summary: "Argo CD 앱 {{ $labels.name }}이 15분 넘게 {{ $labels.health_status }}"
+            description: "먼저 볼 것: kubectl -n argocd get application {{ $labels.name }} -o jsonpath='{.status.resources}'에서 Healthy가 아닌 리소스, 그 리소스의 describe. 앱 Pod 문제면 서비스 알림(ReplicasUnavailable 등)도 함께 온다"
+            dashboard_url: "https://dev3.keepgo.kr/grafana/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22prometheus%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22prometheus%22%2C%22uid%22%3A%22prometheus%22%7D%2C%22expr%22%3A%22argocd_app_info%7Bsync_status%21%3D%5C%22Synced%5C%22%7D%20or%20argocd_app_info%7Bhealth_status%21%3D%5C%22Healthy%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D%7D"
     - name: keepgo-platform.pipeline
       rules:
         - alert: KeepgoPlatformTargetDown
