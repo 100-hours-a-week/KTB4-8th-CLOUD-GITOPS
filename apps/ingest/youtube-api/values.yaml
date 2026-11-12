@@ -1,6 +1,12 @@
 # youtube-api — YouTube 연동·동기화 요청 접수
 # 경로·포트 근거: KTB4-8th-BE 컨트롤러, 자원: 5-3 3.3, 확장: 5-3 5.2
 
+# 동기화는 영상 수만큼 AI 분석을 기다리는 긴 요청이라 p95 지연에서 뺀다(v3 SSE 최대 30분, v2는 결과를 최대 50초 기다림).
+# 나머지(외부 연동 조회 등)는 기본 기준(p95 1초)
+alerts:
+  http:
+    latencyExcludeUris: "/api/v2/member/youtube-sync|/api/v3/member/youtube-sync"
+
 resources:
   requests:
     cpu: 250m
@@ -17,9 +23,3 @@ httpRoute:
     - /api/v2/member/youtube-sync
     - /api/v2/member/external-connections
     - /api/v1/user/youtube-analyze
-
-# 동기화는 영상 수만큼 AI 분석을 기다리는 긴 요청이라 p95 지연에서 뺀다(v3 SSE 최대 30분, v2는 결과를 최대 50초 기다림).
-# 나머지(외부 연동 조회 등)는 기본 기준(p95 1초)
-alerts:
-  http:
-    latencyExcludeUris: "/api/v2/member/youtube-sync|/api/v3/member/youtube-sync"
