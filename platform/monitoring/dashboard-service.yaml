@@ -29,25 +29,23 @@ data:
       "templating": {
         "list": [
           {
-            "name": "datasource",
-            "type": "datasource",
-            "query": "prometheus",
-            "label": "데이터 소스"
-          },
-          {
             "name": "namespace",
             "label": "Namespace",
             "type": "query",
             "datasource": {
               "type": "prometheus",
-              "uid": "${datasource}"
+              "uid": "prometheus"
             },
-            "refresh": 2,
+            "refresh": 1,
             "query": {
-              "query": "label_values(kube_namespace_labels{label_app_kubernetes_io_part_of=\"keepgo\"}, namespace)",
+              "query": "label_values(kube_deployment_status_replicas{namespace=~\"account|ingest|content|recommend|ai|frontend\"}, namespace)",
               "refId": "namespace"
             },
-            "definition": "label_values(kube_namespace_labels{label_app_kubernetes_io_part_of=\"keepgo\"}, namespace)",
+            "definition": "label_values(kube_deployment_status_replicas{namespace=~\"account|ingest|content|recommend|ai|frontend\"}, namespace)",
+            "current": {
+              "text": "recommend",
+              "value": "recommend"
+            },
             "multi": false,
             "includeAll": false,
             "sort": 1
@@ -58,14 +56,18 @@ data:
             "type": "query",
             "datasource": {
               "type": "prometheus",
-              "uid": "${datasource}"
+              "uid": "prometheus"
             },
-            "refresh": 2,
+            "refresh": 1,
             "query": {
-              "query": "label_values(kube_deployment_labels{namespace=\"$namespace\"}, deployment)",
+              "query": "label_values(kube_deployment_status_replicas{namespace=\"$namespace\"}, deployment)",
               "refId": "service"
             },
-            "definition": "label_values(kube_deployment_labels{namespace=\"$namespace\"}, deployment)",
+            "definition": "label_values(kube_deployment_status_replicas{namespace=\"$namespace\"}, deployment)",
+            "current": {
+              "text": "recommend-api",
+              "value": "recommend-api"
+            },
             "multi": false,
             "includeAll": false,
             "sort": 1
@@ -80,7 +82,7 @@ data:
           "description": "",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 0,
@@ -119,7 +121,7 @@ data:
               "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\"}[5m]))",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -131,7 +133,7 @@ data:
           "description": "알림 기준 5%(PrometheusRule)",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 6,
@@ -175,10 +177,10 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\", status=~\"5..\"}[5m])) / sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\"}[5m]))",
+              "expr": "(sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\", status=~\"5..\"}[5m])) or (0 * sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\"}[5m])))) / (sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\"}[5m])) > 0)",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -190,7 +192,7 @@ data:
           "description": "SSE 서비스는 연결 시간이 섞여 의미가 작다",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 12,
@@ -237,7 +239,7 @@ data:
               "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\"}[5m])))",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -249,7 +251,7 @@ data:
           "description": "",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 18,
@@ -288,7 +290,7 @@ data:
               "expr": "kube_deployment_status_replicas_available{namespace=\"$namespace\", deployment=\"$service\"}",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -300,7 +302,7 @@ data:
           "description": "",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 0,
@@ -337,7 +339,7 @@ data:
               "legendFormat": "{{status}}",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -349,7 +351,7 @@ data:
           "description": "",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 12,
@@ -382,11 +384,11 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\", status=~\"5..\"}[5m])) / sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\"}[5m]))",
+              "expr": "(sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\", status=~\"5..\"}[5m])) or (0 * sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\"}[5m])))) / (sum(rate(http_server_requests_seconds_count{namespace=\"$namespace\", app_kubernetes_io_name=\"$service\"}[5m])) > 0)",
               "legendFormat": "5xx",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -398,7 +400,7 @@ data:
           "description": "",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 0,
@@ -435,7 +437,7 @@ data:
               "legendFormat": "p95",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             },
             {
@@ -444,7 +446,7 @@ data:
               "legendFormat": "p99",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -456,7 +458,7 @@ data:
           "description": "KEDA가 만든 HPA 이름은 keda-hpa-<서비스>",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 12,
@@ -493,7 +495,7 @@ data:
               "legendFormat": "현재",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             },
             {
@@ -502,7 +504,7 @@ data:
               "legendFormat": "목표",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -514,7 +516,7 @@ data:
           "description": "HPA 사용률 = 사용량 ÷ requests(5-3 3.5)",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 0,
@@ -551,7 +553,7 @@ data:
               "legendFormat": "사용량",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             },
             {
@@ -560,7 +562,7 @@ data:
               "legendFormat": "requests 합계",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -572,7 +574,7 @@ data:
           "description": "limit에 닿으면 OOMKilled",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 12,
@@ -609,7 +611,7 @@ data:
               "legendFormat": "{{pod}}",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             },
             {
@@ -618,7 +620,7 @@ data:
               "legendFormat": "limit",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -630,7 +632,7 @@ data:
           "description": "MaxRAMPercentage=70(5-3 3.2)",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 0,
@@ -667,7 +669,7 @@ data:
               "legendFormat": "{{pod}}",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -679,7 +681,7 @@ data:
           "description": "Pod당 상한 = SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE(3)",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 12,
@@ -716,7 +718,7 @@ data:
               "legendFormat": "{{pod}}",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -728,7 +730,7 @@ data:
           "description": "",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 0,
@@ -765,7 +767,7 @@ data:
               "legendFormat": "{{pod}}",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -777,7 +779,7 @@ data:
           "description": "",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 12,
@@ -814,7 +816,7 @@ data:
               "legendFormat": "{{pod}}",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
