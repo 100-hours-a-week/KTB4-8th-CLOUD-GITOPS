@@ -666,6 +666,18 @@
             },
             "p95Seconds": {
               "type": "number"
+            },
+            "errorWindow": {
+              "type": "string"
+            },
+            "errorFor": {
+              "type": "string"
+            },
+            "p95For": {
+              "type": "string"
+            },
+            "latencyExcludeUris": {
+              "type": "string"
             }
           }
         },
@@ -677,6 +689,21 @@
               "type": "string"
             },
             "logGroupPrefix": {
+              "type": "string"
+            }
+          }
+        },
+        "db": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "pendingThreshold": {
+              "type": "number"
+            },
+            "pendingFor": {
               "type": "string"
             }
           }

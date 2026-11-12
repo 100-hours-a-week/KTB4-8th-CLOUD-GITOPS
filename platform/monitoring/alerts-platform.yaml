@@ -72,6 +72,28 @@ spec:
             description: "먼저 볼 것: Prometheus면 retentionSize(15GB)와 PVC(20Gi), Redis면 AOF·RDB 크기. StorageClass가 allowVolumeExpansion이라 PVC 용량을 늘릴 수 있다"
             dashboard_url: "https://dev3.keepgo.kr/grafana/d/919b92a8e8041bd567af9edab12c840c?orgId=1&var-namespace={{ $labels.namespace }}&from=now-1h&to=now"
 
+    # 데이터 계층(11-12 S3 실험: redis-0이 죽어도 data Namespace 알림이 하나도 없었다).
+    # 채팅 요청 상태(EPHEMERAL_DATABASE=redis)가 여기 있어서, Redis가 안 살아나면 채팅만 조용히 실패한다.
+    # 재시작 5초처럼 짧은 중단은 울리지 않게 1분 지속 조건(정상 재시작·노드 교체와 구분)
+    - name: keepgo-platform.data
+      rules:
+        - alert: KeepgoPlatformRedisDown
+          expr: kube_statefulset_status_replicas_ready{namespace="data", statefulset="redis"} < 1
+          for: 1m
+          labels: { severity: critical, component: data }
+          annotations:
+            summary: "Redis primary(data/redis)가 1분 넘게 Ready 0 — 채팅 요청 처리 불가"
+            description: "먼저 볼 것: kubectl -n data describe pod redis-0 (Events: PVC 붙이기·노드·이미지). EBS가 다른 AZ 노드로 못 옮겨 Pending이면 같은 AZ 노드 확인. 복구 뒤 chat-api 5xx·재시도 확인"
+            dashboard_url: "https://dev3.keepgo.kr/grafana/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22prometheus%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22prometheus%22%2C%22uid%22%3A%22prometheus%22%7D%2C%22expr%22%3A%22kube_statefulset_status_replicas_ready%7Bnamespace%3D%5C%22data%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D%7D"
+        - alert: KeepgoPlatformRedisReplicaDown
+          expr: kube_statefulset_status_replicas_ready{namespace="data", statefulset="redis-replica"} < kube_statefulset_replicas{namespace="data", statefulset="redis-replica"}
+          for: 10m
+          labels: { severity: warning, component: data }
+          annotations:
+            summary: "Redis replica(data/redis-replica)가 10분 넘게 일부 Ready 아님 — 지금 장애는 없지만 백업 사본이 없음"
+            description: "먼저 볼 것: kubectl -n data get pods, redis-cli INFO replication(primary의 connected_slaves)"
+            dashboard_url: "https://dev3.keepgo.kr/grafana/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22prometheus%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22prometheus%22%2C%22uid%22%3A%22prometheus%22%7D%2C%22expr%22%3A%22kube_statefulset_status_replicas_ready%7Bnamespace%3D%5C%22data%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D%7D"
+
     # Argo CD 자체 감시(11-12). 지표는 kube-prometheus-stack values의 PodMonitor argocd가 모은다(controller 8082·repo-server 8084)
     # Argo CD Notifications(Discord)는 컨트롤러가 살아 있어야 보내지므로, 컨트롤러가 멈춘 경우는 여기서만 잡힌다
     - name: keepgo-platform.gitops

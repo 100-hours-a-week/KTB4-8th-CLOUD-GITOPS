@@ -1,6 +1,7 @@
 {{- /*
 서비스 기본 알림(5-3 7.2, WBS 18). 임계값은 values로 바꾼다.
-kube-state-metrics(재시작·OOM·서비스 다운·Replica 부족)는 모든 서비스(다운은 minReplicas 1 이상만), HTTP 오류율·지연은 http 지표가 있는 서비스만.
+kube-state-metrics(재시작·OOM·서비스 다운·Replica 부족)는 모든 서비스(다운은 minReplicas 1 이상만), HTTP 오류율·지연은 http 지표가 있는 서비스만,
+DB 연결 대기는 Hikari 지표가 있는 서비스(Spring)만.
 
 알림 메시지(Discord)에 넣는 값
   summary     : 지금 값과 기준값을 함께(예: 5xx 비율 87% (기준 5%))
@@ -105,14 +106,15 @@ spec:
     {{- if $a.http.enabled }}
     - name: {{ $name }}.http
       rules:
+        {{- $ew := $a.http.errorWindow | default "2m" }}
         - alert: KeepgoHighErrorRate
           expr: |
-            sum(rate({{ $a.http.requestsMetric }}_count{namespace="{{ $ns }}", app_kubernetes_io_name="{{ $name }}", {{ $a.http.statusLabel }}=~"5.."}[5m]))
-              / sum(rate({{ $a.http.requestsMetric }}_count{namespace="{{ $ns }}", app_kubernetes_io_name="{{ $name }}"}[5m])) > {{ $a.http.errorRatio }}
-          for: 5m
+            sum(rate({{ $a.http.requestsMetric }}_count{namespace="{{ $ns }}", app_kubernetes_io_name="{{ $name }}", {{ $a.http.statusLabel }}=~"5.."}[{{ $ew }}]))
+              / sum(rate({{ $a.http.requestsMetric }}_count{namespace="{{ $ns }}", app_kubernetes_io_name="{{ $name }}"}[{{ $ew }}])) > {{ $a.http.errorRatio }}
+          for: {{ $a.http.errorFor | default "1m" }}
           labels: {severity: critical, namespace: {{ $ns }}, service: {{ $name }}}
           annotations:
-            summary: {{ printf "%s 5xx 비율 %s (기준 %.0f%%), 최근 5분" $name `{{ $value | humanizePercentage }}` (mulf $a.http.errorRatio 100) | quote }}
+            summary: {{ printf "%s 5xx 비율 %s (기준 %.0f%%), 최근 %s" $name `{{ $value | humanizePercentage }}` (mulf $a.http.errorRatio 100) $ew | quote }}
             description: "트레이스 링크에서 fault 요청의 예외(Exception)와 URL을 보고, 같은 trace_id로 로그 링크에서 스택을 확인. 클라이언트 IP·User-Agent로 실제 사용자인지 테스트 트래픽인지 구분"
             {{- with $traceUrl }}
             trace_url: {{ . | quote }}
@@ -123,14 +125,37 @@ spec:
             {{- with $dashUrl }}
             dashboard_url: {{ . | quote }}
             {{- end }}
+        {{- $ex := "" }}
+        {{- with $a.http.latencyExcludeUris }}{{- $ex = printf ", uri!~%q" . }}{{- end }}
         - alert: KeepgoHighLatencyP95
           expr: |
-            histogram_quantile(0.95, sum by (le) (rate({{ $a.http.requestsMetric }}_bucket{namespace="{{ $ns }}", app_kubernetes_io_name="{{ $name }}"}[5m]))) > {{ $a.http.p95Seconds }}
-          for: 10m
+            histogram_quantile(0.95, sum by (le) (rate({{ $a.http.requestsMetric }}_bucket{namespace="{{ $ns }}", app_kubernetes_io_name="{{ $name }}"{{ $ex }}}[5m]))) > {{ $a.http.p95Seconds }}
+          for: {{ $a.http.p95For | default "5m" }}
           labels: {severity: warning, namespace: {{ $ns }}, service: {{ $name }}}
           annotations:
-            summary: {{ printf "%s p95 응답 시간 %s (기준 %v초), 최근 5분" $name `{{ $value | humanizeDuration }}` $a.http.p95Seconds | quote }}
+            summary: {{ printf "%s p95 응답 시간 %s (기준 %v초%s), 최근 5분" $name `{{ $value | humanizeDuration }}` $a.http.p95Seconds (ternary ", SSE 경로 제외" "" (ne ($a.http.latencyExcludeUris | default "") "")) | quote }}
             description: "트레이스 링크에서 느린 요청의 구간(DB·Redis·AI 호출) 중 어디서 시간을 썼는지 확인. 대시보드의 DB 커넥션 대기(hikaricp pending)도 함께 확인"
+            {{- with $traceUrl }}
+            trace_url: {{ . | quote }}
+            {{- end }}
+            {{- with $logsUrl }}
+            logs_url: {{ . | quote }}
+            {{- end }}
+            {{- with $dashUrl }}
+            dashboard_url: {{ . | quote }}
+            {{- end }}
+    {{- end }}
+    {{- if and $a.db $a.db.enabled }}
+    - name: {{ $name }}.db
+      rules:
+        # DB 연결 풀 대기. Pod 하나라도 기준을 넘으면(max). 연결 수(Pod당 Hikari maximumPoolSize)보다 요청이 많이 몰리거나 DB가 느려진 것
+        - alert: KeepgoDBConnectionPending
+          expr: max(hikaricp_connections_pending{namespace="{{ $ns }}", app_kubernetes_io_name="{{ $name }}"}) > {{ $a.db.pendingThreshold }}
+          for: {{ $a.db.pendingFor | default "1m" }}
+          labels: {severity: critical, namespace: {{ $ns }}, service: {{ $name }}}
+          annotations:
+            summary: {{ printf "%s DB 연결 대기 %s개 (기준 %v개), %s 넘게 지속" $name `{{ printf "%.0f" $value }}` $a.db.pendingThreshold ($a.db.pendingFor | default "1m") | quote }}
+            description: "트레이스에서 느린 요청이 SQL 구간 전에 멈췄는지(연결 대기) SQL 구간이 길어졌는지(DB 느림) 구분. RDS CPU·지연(CloudWatch)과 다른 서비스도 같이 대기 중인지 확인. 대기 중 요청은 Hikari connectionTimeout 뒤 실패한다"
             {{- with $traceUrl }}
             trace_url: {{ . | quote }}
             {{- end }}

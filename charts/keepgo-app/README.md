@@ -19,7 +19,7 @@
 | NetworkPolicy | `networkPolicy.enabled`(기본 켬) | 들어오는 통신 허용 목록(Namespace 기본 차단은 tenancy) |
 | HTTPRoute (+TargetGroupConfiguration) | `httpRoute.enabled` | 공통 Gateway에 경로 연결, ALB 대상 그룹 헬스체크·해제 지연 |
 | PodMonitor | `metrics.enabled`(기본 켬) | Prometheus 수집 |
-| PrometheusRule | `alerts.enabled`(기본 켬) | 재시작·OOM·Replica 부족·5xx·p95 알림 |
+| PrometheusRule | `alerts.enabled`(기본 켬) | 재시작·OOM·서비스 다운·Replica 부족·5xx(2분 구간, 1분 지속)·p95·DB 연결 대기(`alerts.db`, Spring만) 알림 |
 | 테스트 Pod | `tests.enabled` + `helm test` | Service 이름으로 HTTP 통신 확인(kind용) |
 
 ## 차트가 강제하는 규칙
@@ -80,7 +80,7 @@ probes:
 |---|---|
 | 핵심 API (auth, chat, recommend, ai-api) | `priorityClassName: keepgo-high`, prod는 `topologySpread.zone.enabled: true` |
 | 일반 API (auth, member, youtube, wishlist) | `autoscaling.type: hpa` |
-| SSE (chat, recommend) | `autoscaling.type: keda`(Prometheus 연결 수), 종료 상한·ALB 해제 지연을 재연결 유도 시간만큼 늘림, p95 알림 끔 |
+| SSE (chat, recommend) | `autoscaling.type: keda`(Prometheus 연결 수), 종료 상한·ALB 해제 지연을 재연결 유도 시간만큼 늘림, p95 알림은 SSE 경로만 뺌(`alerts.http.latencyExcludeUris`). 같은 서비스의 일반 요청은 기본 기준 |
 | ai-api | `probes.preset: fastapi` + 경로 `/health`, 포트 8000, UID 10002, `extraVolumes`(/app/chroma), KEDA(처리 중 요청 수) |
 | web | `probes.preset: nextjs`, 포트 3000, UID 1000, `component: web` |
 | worker | `component: worker`, Service·readiness·PDB 끔, KEDA SQS(0까지), `priorityClassName: keepgo-low`, worker 노드 Taint 허용 |
