@@ -119,3 +119,6 @@ metrics:
 alerts:
   http:
     enabled: false
+  # Hikari(DB 연결 풀) 지표가 없다
+  db:
+    enabled: false

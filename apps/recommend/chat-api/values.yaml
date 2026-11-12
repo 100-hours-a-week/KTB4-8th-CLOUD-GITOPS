@@ -53,7 +53,9 @@ httpRoute:
     # 빠질 때 기존 연결을 정리할 시간. 종료 상한(60초)보다 짧게.
     deregistrationDelaySeconds: 50
 
-# 오래 열린 요청이라 p95 지연 알림은 의미가 없다.
+# 채팅 전송(SSE)은 응답 시간이 곧 답변 스트림 시간이라 p95 지연에서 뺀다(상태도 항상 200).
+# 나머지(내역 조회·의도 카드 수정·초기화)는 일반 요청이라 기본 기준(p95 1초)으로 본다.
+# 11-12 S5: 300초 하나로 두면 같은 서비스의 짧은 요청이 1분씩 걸려도 알림이 울리지 않았다.
 alerts:
   http:
-    p95Seconds: 300
+    latencyExcludeUris: "/api/v2/member/chat-messages|/api/v3/member/chat-messages"

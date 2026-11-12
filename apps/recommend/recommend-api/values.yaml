@@ -60,7 +60,9 @@ httpRoute:
     # 빠질 때 기존 연결을 정리할 시간. 종료 상한(60초)보다 짧게.
     deregistrationDelaySeconds: 50
 
-# 오래 열린 요청이라 p95 지연 알림은 의미가 없다.
+# 코스 추천(SSE)은 응답 시간이 곧 스트림 시간이라 p95 지연에서 뺀다(상태도 항상 200).
+# 나머지(인기 장소·이벤트 조회, 추천 취소, 광고)는 일반 요청이라 기본 기준(p95 1초)으로 본다.
+# 11-12 S5: 300초 하나로 두면 인기 장소 조회 p95가 58초여도 알림이 울리지 않았다.
 alerts:
   http:
-    p95Seconds: 300
+    latencyExcludeUris: "/api/v2/member/recommendation|/api/v3/member/recommendation"

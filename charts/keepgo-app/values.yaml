@@ -381,8 +381,21 @@ alerts:
     requestsMetric: http_server_requests_seconds
     statusLabel: status
     errorRatio: 0.05
-    # SSE처럼 오래 열린 요청은 지연 알림이 의미가 없으므로 서비스 values에서 끈다.
+    # 오류율 계산 구간과 지속 시간. 11-12 S5 실험: 5분·5분이면 2~3분짜리 장애는 끝나고 4분 뒤에야 울렸다.
+    errorWindow: 2m
+    errorFor: 1m
+    # 지연(p95) 기준과 지속 시간
     p95Seconds: 1
+    p95For: 5m
+    # 지연 계산에서 뺄 경로(PromQL 정규식, 전체 일치). SSE처럼 응답 시간이 곧 스트림 시간인 경로를 뺀다.
+    # 비우면 모든 경로. SSE의 실패·지연은 HTTP 지표로 보이지 않으므로(상태 200) 별도 SSE 지표로 본다(11-12 S6).
+    latencyExcludeUris: ""
+  # DB 연결 풀 대기(Spring Hikari). 11-12 S5 실험: DB 0.3초 지연에 대기가 199개까지 쌓였는데 다른 알림은 하나도 안 울렸다.
+  # 원인(연결 고갈)을 결과(오류율)보다 먼저 잡는다. Hikari 지표가 없는 서비스(ai-api·web)는 끈다.
+  db:
+    enabled: true
+    pendingThreshold: 10
+    pendingFor: 1m
   # 알림 메시지에 붙일 Grafana 링크(트레이스·로그·대시보드). 비우면 링크 없이 보낸다. 환경별 values에 둔다.
   links:
     # 예) https://dev3.keepgo.kr/grafana
