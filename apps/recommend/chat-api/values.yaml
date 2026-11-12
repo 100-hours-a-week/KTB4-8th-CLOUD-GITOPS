@@ -47,6 +47,8 @@ httpRoute:
   pathPrefixes:
     - /api/v2/member/chat-messages
     - /api/v1/user/chat-messages
+    # v3 채팅(글자 단위 스트림, BE ChatStreamController). 지금 FE는 v2를 쓰지만 v3로 바꿔도 member-api로 새지 않게
+    - /api/v3/member/chat-messages
   targetGroup:
     # 빠질 때 기존 연결을 정리할 시간. 종료 상한(60초)보다 짧게.
     deregistrationDelaySeconds: 50

@@ -50,6 +50,12 @@ httpRoute:
     - /api/v1/places
     - /api/v1/events
     - /api/v1/advertisements
+    # v3 추천(SSE). FE가 v3를 먼저 부른다. 없으면 /api 전체를 맡은 member-api로 가는데,
+    # member-api는 ai-api NetworkPolicy 허용 대상이 아니라 AI 호출이 막힌다(11-12 연결 시험: member-api 실패, recommend-api 성공)
+    - /api/v3/member/recommendation
+    # v3 공개 조회(인기 장소·진행 중 이벤트). BE RecommendationControllerV3 소속
+    - /api/v3/places
+    - /api/v3/events
   targetGroup:
     # 빠질 때 기존 연결을 정리할 시간. 종료 상한(60초)보다 짧게.
     deregistrationDelaySeconds: 50
