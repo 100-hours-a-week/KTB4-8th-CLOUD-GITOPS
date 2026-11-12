@@ -57,3 +57,9 @@ httpRoute:
 alerts:
   http:
     p95Seconds: 300
+
+# 11-12 카오스 실험(S1·S2·S4): Pod 1개라 복구 시간이 그대로 전체 다운 시간(32초·211초·60초)이었다.
+# 2개 이상을 AZ a·c에 나눠 둔다(Hard). PDB는 복제본 2개 이상이면 차트가 만든다(maxUnavailable 1).
+topologySpread:
+  zone:
+    enabled: true
