@@ -184,6 +184,9 @@ grafana:
       api_url: https://api.github.com/user
       login_attribute_path: login
       name_attribute_path: name
+      # 사용자 고유값. GitHub /user는 sub가 아니라 id(숫자)를 준다. 없으면 고유값이 빈 값으로 저장돼
+      # 첫 로그인만 성공하고 두 번째부터 "user sync failed"(Failed to create user: user not found)로 실패했다(11-13).
+      id_attribute_path: id
       # 허용 명단: KeepGo 8조 팀원 GitHub 아이디(ktb4-8th 팀에서 운영진 계정 제외, 11-11). 팀원이 바뀌면 여기를 고친다
       # 명단에 있으면 Viewer, 없으면 역할이 비고 strict라서 로그인 거절
       role_attribute_path: "contains(['kimSR0916', 'gaamjaaa', 'LifeSatin', 'stellarover', 'hochan00', 'zikpoka5-commits'], login) && 'Viewer'"
