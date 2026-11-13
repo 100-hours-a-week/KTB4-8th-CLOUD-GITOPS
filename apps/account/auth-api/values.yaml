@@ -27,3 +27,13 @@ httpRoute:
     - /login/oauth2
     - /api/v1/user/auth-session
     - /api/v1/auth
+  # 임시 조치(11-13): Google 로그인 시작(/oauth2/authorization)과 콜백(/login/oauth2/code)이
+  # 다른 Pod로 가면 로그인이 실패한다. 백엔드가 OAuth state를 Pod 메모리(HttpSession)에 두기 때문이다.
+  # 복제본이 2개가 된 뒤(#41) 두 번에 한 번꼴로 실패해서, ALB 쿠키로 같은 사용자를 같은 Pod에 붙인다.
+  # 백엔드가 state를 쿠키·Redis·Spring Session JDBC로 옮기면 지운다.
+  targetGroup:
+    extraAttributes:
+      - { key: stickiness.enabled, value: "true" }
+      - { key: stickiness.type, value: lb_cookie }
+      # 로그인 왕복(구글 동의 화면 포함)이 끝날 만큼만 붙인다
+      - { key: stickiness.lb_cookie.duration_seconds, value: "600" }
