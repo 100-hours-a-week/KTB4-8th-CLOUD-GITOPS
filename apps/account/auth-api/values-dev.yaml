@@ -2,3 +2,9 @@
 autoscaling:
   minReplicas: 2
   maxReplicas: 3
+
+env:
+  # 로그인과 YouTube OAuth의 임시 인증 요청을 dev3의 공용 Redis에 저장한다.
+  # Google 토큰과 회원 데이터의 저장소는 이 설정의 영향을 받지 않는다.
+  KEEPGO_SECURITY_OAUTH2_AUTHORIZATIONREQUEST_PROVIDER: redis
+  KEEPGO_SECURITY_OAUTH2_AUTHORIZATIONREQUEST_FAILUREURL: https://dev3.keepgo.kr/login
