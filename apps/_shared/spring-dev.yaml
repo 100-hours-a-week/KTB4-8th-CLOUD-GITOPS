@@ -1,7 +1,7 @@
 # Spring 서비스 dev 공통. auto-release-dev(scripts/release.py)가 image.tag를 이 파일에 커밋한다.
 image:
   # V2 운영 backend 이미지로 시작한다. auto-release-dev가 KTB4-8th-BE develop 이미지로 바꾼다.
-  tag: "58b702c3713390d411a3e8d10e8968777f704449"
+  tag: "1681ef9f01610be700cc4621d7126dbd4b939a12"
 
 env:
   # dev3 RDS keepgo-dev3-mysql(dice 소유, Data 서브넷, MySQL 8.4, DB keepgo)
