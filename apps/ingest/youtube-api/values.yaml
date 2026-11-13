@@ -32,7 +32,7 @@ httpRoute:
     # v3 동기화(SSE). FE는 SYNC_V3=on(develop·main 빌드 모두)이라 이 경로를 부른다.
     # 없으면 /api 전체를 맡은 member-api가 받는데, member-api는 ai-api NetworkPolicy 허용 대상이 아니라 영상 분석이 막힌다(11-12)
     - /api/v3/member/youtube-sync
-    - /api/v2/member/external-connections
+    # /api/v2/member/external-connections(유튜브 계정 연결)는 auth-api로 옮겼다(11-13, OAuth 콜백과 같은 서비스여야 함)
     - /api/v1/user/youtube-analyze
   targetGroup:
     # 빠질 때 기존 연결을 정리할 시간. 종료 상한(60초)보다 짧게.

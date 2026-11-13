@@ -27,6 +27,11 @@ httpRoute:
     - /login/oauth2
     - /api/v1/user/auth-session
     - /api/v1/auth
+    # 유튜브 계정 연결(11-13 youtube-api에서 옮김). 시작(POST /api/v2/member/external-connections/youtube)이
+    # OAuth state를 그 Pod의 HttpSession에 저장하고, Google 콜백(/login/oauth2/code/google)은 위 /login/oauth2로 auth-api가 받는다.
+    # 시작을 youtube-api가 받으면 콜백을 받는 auth-api에 세션이 없어 연결이 실패한다(서비스가 달라 sticky로도 못 막음).
+    # 같은 이미지라 auth-api가 연결 조회·해제(GET·DELETE)까지 그대로 처리한다. 아래 sticky가 Pod 2개 문제도 같이 막는다.
+    - /api/v2/member/external-connections
   # 임시 조치(11-13): Google 로그인 시작(/oauth2/authorization)과 콜백(/login/oauth2/code)이
   # 다른 Pod로 가면 로그인이 실패한다. 백엔드가 OAuth state를 Pod 메모리(HttpSession)에 두기 때문이다.
   # 복제본이 2개가 된 뒤(#41) 두 번에 한 번꼴로 실패해서, ALB 쿠키로 같은 사용자를 같은 Pod에 붙인다.
