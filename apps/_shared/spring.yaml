@@ -37,12 +37,8 @@ env:
   # 11-12 S5 실험: DB 0.3초 지연에 요청마다 30초씩 줄을 서서 대기 199개, p95 58초까지 커졌다.
   # 3초 안에 못 얻으면 바로 실패시켜 줄이 끝없이 길어지지 않게 하고, DB가 회복되면 곧바로 정상으로 돌아오게 한다.
   SPRING_DATASOURCE_HIKARI_CONNECTIONTIMEOUT: "3000"
-  # V2와 같은 스키마 관리 방식. backend에 Flyway 스크립트가 생기면 migration Job으로 옮기고 이 값을 바꾼다(5-4 8.3).
-  SPRING_JPA_HIBERNATE_DDL_AUTO: update
-  SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
-  SPRING_FLYWAY_BASELINE_VERSION: "1"
-  SPRING_SQL_INIT_MODE: always
-  SPRING_SQL_INIT_CONTINUE_ON_ERROR: "true"
+  # 스키마는 Flyway(V11~)가 관리한다. ddl-auto·sql.init·baseline은 BE yaml(validate, never, baseline 10)을 따른다(11-16).
+  # dev3 DB는 11-16 V1~V10 정렬 후 flyway_schema_history에 BASELINE 10을 기록했다.
   # 클러스터 안 ai-api(ai Namespace). V2는 Cloud Map 주소였다.
   AI_SERVER_API_ADDRESS: http://ai-api.ai.svc.cluster.local:8000
   SPRING_SERVLET_MULTIPART_MAXFILESIZE: 10MB
