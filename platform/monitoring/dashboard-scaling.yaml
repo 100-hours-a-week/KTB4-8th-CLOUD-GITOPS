@@ -27,14 +27,7 @@ data:
         "to": "now"
       },
       "templating": {
-        "list": [
-          {
-            "name": "datasource",
-            "type": "datasource",
-            "query": "prometheus",
-            "label": "데이터 소스"
-          }
-        ]
+        "list": []
       },
       "panels": [
         {
@@ -44,7 +37,7 @@ data:
           "description": "오래 Pending이면 NodePool 한도·Quota·IP 부족 확인(5-3 6.7)",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 0,
@@ -91,7 +84,7 @@ data:
               "expr": "sum(kube_pod_status_phase{namespace=~\"account|ingest|content|recommend|ai|frontend\", phase=\"Pending\"})",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -103,7 +96,7 @@ data:
           "description": "",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 6,
@@ -143,10 +136,10 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum(increase(keda_scaler_errors_total[15m]))",
+              "expr": "sum(increase(keda_scaler_detail_errors_total[15m]))",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -158,7 +151,7 @@ data:
           "description": "",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 12,
@@ -197,7 +190,7 @@ data:
               "expr": "kube_deployment_status_replicas{namespace=\"ingest\", deployment=\"youtube-analysis-worker\"}",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -205,11 +198,11 @@ data:
         {
           "id": 4,
           "type": "stat",
-          "title": "SSE 연결 합계",
-          "description": "[가정] 개발팀 계측 지표",
+          "title": "채팅·추천 처리 중 HTTP 요청",
+          "description": "채팅·추천 KEDA 트리거와 같은 지표. SSE를 포함한 모든 처리 중 HTTP 요청",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 18,
@@ -245,10 +238,10 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum(keepgo_sse_active_connections)",
+              "expr": "sum(http_server_requests_active_seconds_gcount{namespace=\"recommend\", app_kubernetes_io_name=~\"chat-api|recommend-api\"})",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -260,7 +253,7 @@ data:
           "description": "",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 0,
@@ -297,7 +290,7 @@ data:
               "legendFormat": "{{deployment}}",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -309,7 +302,7 @@ data:
           "description": "SQS 대기 메시지, SSE 연결 수, AI 처리 중 요청",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 0,
@@ -346,7 +339,7 @@ data:
               "legendFormat": "{{scaledObject}} {{metric}}",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -354,11 +347,11 @@ data:
         {
           "id": 7,
           "type": "timeseries",
-          "title": "ai-api 처리 중 요청",
-          "description": "[가정] AI팀 계측 지표",
+          "title": "ai-api 평균 동시 처리 추정(2분)",
+          "description": "AI KEDA 트리거와 같은 지표. 완료된 요청의 처리 시간을 사용한 추정치",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 12,
@@ -391,11 +384,11 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum(keepgo_ai_inflight_requests{namespace=\"ai\"})",
-              "legendFormat": "in-flight",
+              "expr": "sum(rate(keepgo_http_request_duration_seconds_sum{namespace=\"ai\", app_kubernetes_io_name=\"ai-api\"}[2m]))",
+              "legendFormat": "평균 동시 처리",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -407,7 +400,7 @@ data:
           "description": "Quota 한도 근처면 확장이 막힌다(5-2 2.2)",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 0,
@@ -444,7 +437,7 @@ data:
               "legendFormat": "{{namespace}} 사용",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
@@ -456,7 +449,7 @@ data:
           "description": "",
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "prometheus"
           },
           "gridPos": {
             "x": 12,
@@ -493,7 +486,7 @@ data:
               "legendFormat": "{{namespace}} 사용",
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "prometheus"
               }
             }
           ]
